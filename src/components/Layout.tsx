@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Camera, Music, Baby, Zap, Heart, Home,
-  Bell, Menu, X, ChevronRight, AlertTriangle
+  Bell, Menu, X, ChevronRight, AlertTriangle, Settings
 } from 'lucide-react';
 import { ministries } from '../data/ministries';
 import { getAlertVolunteers } from '../data/volunteers';
@@ -107,6 +107,15 @@ export default function Layout({ children }: LayoutProps) {
                 {alertCount}
               </span>
             )}
+          </NavLink>
+
+          <div className="pt-4 pb-1">
+            <p className="text-indigo-400 text-xs font-semibold uppercase tracking-wider px-3">Sistema</p>
+          </div>
+
+          <NavLink to="/configuracoes" className={navLinkClass} onClick={() => setSidebarOpen(false)}>
+            <Settings size={18} />
+            Configurações
           </NavLink>
         </nav>
 
