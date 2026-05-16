@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Camera, Music, Baby, Zap, Heart, Home,
-  Bell, Menu, X, ChevronRight, AlertTriangle, Settings
+  Bell, Menu, X, ChevronRight, AlertTriangle, Settings, LogOut, ShieldCheck, User
 } from 'lucide-react';
 import { ministries } from '../data/ministries';
 import { getAlertVolunteers } from '../data/volunteers';
+import { useAuth } from '../contexts/AuthContext';
 
 const iconMap: Record<string, React.ReactNode> = {
   Camera: <Camera size={18} />,
@@ -24,6 +25,7 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const alertCount = getAlertVolunteers(7).length;
+  const { profile, isAdmin, signOut } = useAuth();
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
@@ -95,6 +97,18 @@ export default function Layout({ children }: LayoutProps) {
             </NavLink>
           ))}
 
+          {!isAdmin && profile?.ministry_id && (
+            <NavLink
+              to="/meu-ministerio"
+              className={navLinkClass}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <User size={18} className="text-purple-400" />
+              Meu Ministério
+              <ChevronRight size={14} className="ml-auto opacity-50" />
+            </NavLink>
+          )}
+
           <div className="pt-4 pb-1">
             <p className="text-indigo-400 text-xs font-semibold uppercase tracking-wider px-3">Gestão</p>
           </div>
@@ -119,13 +133,29 @@ export default function Layout({ children }: LayoutProps) {
           </NavLink>
         </nav>
 
-        {/* Demo banner */}
-        <div className="px-3 pb-4">
-          <div className="bg-indigo-800/50 rounded-lg px-3 py-2.5">
-            <p className="text-indigo-200 text-xs font-medium">Modo Demo</p>
-            <p className="text-indigo-400 text-xs mt-0.5">Dados de exemplo · Igreja Karmel / Lagoinha</p>
+        {/* User info + logout */}
+        {profile && (
+          <div className="px-3 pb-4">
+            <div className="bg-indigo-800/50 rounded-lg px-3 py-2.5">
+              <div className="flex items-center gap-2 mb-1">
+                {profile.role === 'admin'
+                  ? <ShieldCheck size={14} className="text-indigo-300" />
+                  : <User size={14} className="text-purple-300" />
+                }
+                <p className="text-indigo-100 text-xs font-semibold truncate">{profile.name || profile.email}</p>
+              </div>
+              <p className="text-indigo-400 text-xs mb-2">
+                {profile.role === 'admin' ? 'Administrador' : 'Coordenador'}
+              </p>
+              <button
+                onClick={() => signOut().then(() => navigate('/login'))}
+                className="flex items-center gap-1.5 text-indigo-300 hover:text-white text-xs transition-colors"
+              >
+                <LogOut size={13} /> Sair
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </aside>
 
       {/* Main content */}
@@ -158,8 +188,21 @@ export default function Layout({ children }: LayoutProps) {
                 </span>
               )}
             </button>
-            <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-              <span className="text-indigo-700 font-semibold text-sm">K</span>
+            <div className="flex items-center gap-2">
+              {profile && (
+                <span className={`hidden sm:inline text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  profile.role === 'admin'
+                    ? 'bg-indigo-100 text-indigo-700'
+                    : 'bg-purple-100 text-purple-700'
+                }`}>
+                  {profile.role === 'admin' ? 'Admin' : 'Coordenador'}
+                </span>
+              )}
+              <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+                <span className="text-indigo-700 font-semibold text-sm">
+                  {profile?.name?.[0]?.toUpperCase() ?? 'K'}
+                </span>
+              </div>
             </div>
           </div>
         </header>

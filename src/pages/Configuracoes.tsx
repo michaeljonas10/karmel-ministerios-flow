@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useMinistries } from '../hooks/useMinistries';
-import { Settings, Church, Link2, Users, Copy, Check, Plus, X, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { Settings, Church, Link2, Users, Copy, Check, Plus, X, Pencil, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, UserPlus, ShieldCheck, User } from 'lucide-react';
 import type { Ministry, SubArea } from '../types';
+import type { UserProfile } from '../contexts/AuthContext';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface ChurchSettings {
@@ -657,20 +659,268 @@ function TabMinisterios({ onToast }: { onToast: (msg: string) => void }) {
   );
 }
 
-// ─── Main page ───────────────────────────────────────────────────────────────
-type Tab = 'igreja' | 'link' | 'ministerios';
+// ─── Tab 4 — Usuários ────────────────────────────────────────────────────────
+function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
+  const { ministries } = useMinistries();
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: '', email: '', password: '', ministry_id: '' });
+  const [showPwd, setShowPwd] = useState(false);
+  const [formError, setFormError] = useState('');
 
-const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  const fetchUsers = async () => {
+    const { data } = await supabase.from('user_profiles').select('*').order('created_at', { ascending: false });
+    if (data) setUsers(data as UserProfile[]);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchUsers(); }, []);
+
+  const openModal = () => {
+    setForm({ name: '', email: '', password: '', ministry_id: '' });
+    setFormError('');
+    setModalOpen(true);
+  };
+
+  const handleCreate = async () => {
+    if (!form.name.trim() || !form.email.trim() || !form.password.trim() || !form.ministry_id) {
+      setFormError('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    setSaving(true);
+    setFormError('');
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(
+      'https://fzbxzcwopgwsojxmckpa.supabase.co/functions/v1/create-coordinator',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          password: form.password,
+          ministry_id: form.ministry_id,
+        }),
+      }
+    );
+    const json = await res.json();
+    setSaving(false);
+    if (!res.ok || json.error) {
+      setFormError(json.error || 'Erro ao criar coordenador.');
+    } else {
+      setModalOpen(false);
+      await fetchUsers();
+      onToast(`Coordenador "${form.name}" criado com sucesso!`);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja remover este usuário?')) return;
+    setDeleteId(id);
+    // Delete from user_profiles (auth user remains but loses app access without profile)
+    await supabase.from('user_profiles').delete().eq('id', id);
+    setDeleteId(null);
+    await fetchUsers();
+    onToast('Usuário removido.');
+  };
+
+  const getMinistryName = (id: string | null) => {
+    if (!id) return '—';
+    return ministries.find(m => m.id === id)?.name ?? id;
+  };
+
+  if (loading) return <div className="p-8 text-gray-400 text-sm">Carregando...</div>;
+
+  return (
+    <>
+      <div className="max-w-3xl">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm text-gray-500">{users.length} usuário{users.length !== 1 ? 's' : ''} cadastrado{users.length !== 1 ? 's' : ''}</p>
+          <button
+            onClick={openModal}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            <UserPlus size={15} /> Adicionar Coordenador
+          </button>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr className="text-xs text-gray-400 uppercase tracking-wider">
+                <th className="text-left px-5 py-3">Nome</th>
+                <th className="text-left px-5 py-3">Email</th>
+                <th className="text-left px-5 py-3">Perfil</th>
+                <th className="text-left px-5 py-3">Ministério</th>
+                <th className="text-left px-5 py-3"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {users.map(u => (
+                <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center">
+                        {u.role === 'admin'
+                          ? <ShieldCheck size={14} className="text-indigo-600" />
+                          : <User size={14} className="text-purple-600" />
+                        }
+                      </div>
+                      <span className="text-sm font-medium text-gray-800">{u.name || '—'}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className="text-sm text-gray-600">{u.email}</span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {u.role === 'admin'
+                      ? <span className="inline-block bg-indigo-100 text-indigo-700 text-xs font-semibold px-2.5 py-1 rounded-full">Admin</span>
+                      : <span className="inline-block bg-purple-100 text-purple-700 text-xs font-semibold px-2.5 py-1 rounded-full">Coordenador</span>
+                    }
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className="text-sm text-gray-600">{getMinistryName(u.ministry_id)}</span>
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    {u.role !== 'admin' && (
+                      <button
+                        onClick={() => handleDelete(u.id)}
+                        disabled={deleteId === u.id}
+                        className="p-1.5 text-gray-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40"
+                        title="Remover"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {users.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="text-center py-10 text-gray-400 text-sm">Nenhum usuário cadastrado</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {modalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={e => { if (e.target === e.currentTarget) setModalOpen(false); }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="font-bold text-gray-900 text-lg">Novo Coordenador</h2>
+              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+                <input
+                  value={form.name}
+                  onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                  placeholder="Nome completo"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                  placeholder="coordenador@karmel.com.br"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Senha temporária *</label>
+                <div className="relative">
+                  <input
+                    type={showPwd ? 'text' : 'password'}
+                    value={form.password}
+                    onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+                    placeholder="Mínimo 6 caracteres"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPwd(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ministério *</label>
+                <select
+                  value={form.ministry_id}
+                  onChange={e => setForm(p => ({ ...p, ministry_id: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Selecione...</option>
+                  {ministries.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+              {formError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
+                  {formError}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+              <button
+                onClick={() => setModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={saving}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                {saving ? 'Criando...' : 'Criar Coordenador'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Main page ───────────────────────────────────────────────────────────────
+type Tab = 'igreja' | 'link' | 'ministerios' | 'usuarios';
+
+const ALL_TABS: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
   { id: 'igreja', label: 'Igreja', icon: <Church size={16} /> },
   { id: 'link', label: 'Link de Cadastro', icon: <Link2 size={16} /> },
   { id: 'ministerios', label: 'Ministérios & Coordenadores', icon: <Users size={16} /> },
+  { id: 'usuarios', label: 'Usuários', icon: <UserPlus size={16} />, adminOnly: true },
 ];
 
 export default function Configuracoes() {
+  const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('igreja');
   const [toast, setToast] = useState('');
 
   const showToast = (msg: string) => setToast(msg);
+  const TABS = ALL_TABS.filter(t => !t.adminOnly || isAdmin);
 
   return (
     <div className="p-4 lg:p-6 max-w-4xl mx-auto">
@@ -690,7 +940,7 @@ export default function Configuracoes() {
         {TABS.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => setActiveTab(tab.id as Tab)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all flex-1 justify-center
               ${activeTab === tab.id
                 ? 'bg-white text-indigo-700 shadow-sm'
@@ -708,6 +958,7 @@ export default function Configuracoes() {
         {activeTab === 'igreja' && <TabIgreja onToast={showToast} />}
         {activeTab === 'link' && <TabLink />}
         {activeTab === 'ministerios' && <TabMinisterios onToast={showToast} />}
+        {activeTab === 'usuarios' && isAdmin && <TabUsuarios onToast={showToast} />}
       </div>
 
       {toast && <Toast message={toast} onClose={() => setToast('')} />}
