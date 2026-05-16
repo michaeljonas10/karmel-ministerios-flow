@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useMinistries } from '../hooks/useMinistries';
 import { useAuth } from '../contexts/AuthContext';
-import { Settings, Church, Link2, Users, Copy, Check, Plus, X, Pencil, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, UserPlus, ShieldCheck, User } from 'lucide-react';
+import { useTheme, THEMES } from '../contexts/ThemeContext';
+import type { ThemeId } from '../contexts/ThemeContext';
+import { Settings, Church, Link2, Users, Copy, Check, Plus, X, Pencil, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, UserPlus, ShieldCheck, User, Palette } from 'lucide-react';
 import type { Ministry, SubArea } from '../types';
 import type { UserProfile } from '../contexts/AuthContext';
 
@@ -904,14 +906,77 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
   );
 }
 
+// ─── Tab 5 — Aparência ────────────────────────────────────────────────────────
+function TabAparencia() {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-semibold text-gray-800 mb-1">Tema de cores</h3>
+        <p className="text-xs text-gray-500 mb-4">Cada usuário pode escolher seu próprio tema. A escolha fica salva no seu navegador.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {THEMES.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTheme(t.id as ThemeId)}
+              className={`relative rounded-2xl overflow-hidden border-2 transition-all text-left ${
+                theme === t.id ? 'border-[var(--accent)] shadow-lg scale-[1.02]' : 'border-transparent hover:border-gray-200'
+              }`}
+            >
+              {/* Sidebar preview */}
+              <div
+                className="h-16 w-full flex flex-col justify-between p-2"
+                style={{ background: `linear-gradient(135deg, ${t.previewFrom}, ${t.previewTo})` }}
+              >
+                <div className="flex gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
+                  <div className="w-6 h-1.5 rounded-full bg-white/20" />
+                </div>
+                <div className="flex gap-1 items-center">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.previewAccent }} />
+                  <div className="w-10 h-1.5 rounded-full" style={{ backgroundColor: t.previewAccent + '60' }} />
+                </div>
+                {/* Active nav simulation */}
+                <div className="flex gap-1 items-center rounded px-1 py-0.5" style={{ backgroundColor: t.previewAccent + '40' }}>
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: t.previewAccent }} />
+                  <div className="w-8 h-1 rounded-full bg-white/60" />
+                </div>
+              </div>
+              {/* Label */}
+              <div className="bg-white px-3 py-2">
+                <p className="text-xs font-semibold text-gray-800 flex items-center gap-1.5">
+                  {t.name}
+                  {t.dark && <span className="text-[10px] bg-gray-900 text-white px-1 rounded">dark</span>}
+                </p>
+                <p className="text-[11px] text-gray-400 mt-0.5 leading-tight">{t.description}</p>
+              </div>
+              {/* Checkmark */}
+              {theme === t.id && (
+                <div
+                  className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: t.previewAccent }}
+                >
+                  <Check size={11} className="text-white" />
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ───────────────────────────────────────────────────────────────
-type Tab = 'igreja' | 'link' | 'ministerios' | 'usuarios';
+type Tab = 'igreja' | 'link' | 'ministerios' | 'usuarios' | 'aparencia';
 
 const ALL_TABS: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
   { id: 'igreja', label: 'Igreja', icon: <Church size={16} /> },
   { id: 'link', label: 'Link de Cadastro', icon: <Link2 size={16} /> },
-  { id: 'ministerios', label: 'Ministérios & Coordenadores', icon: <Users size={16} /> },
+  { id: 'ministerios', label: 'Ministérios', icon: <Users size={16} /> },
   { id: 'usuarios', label: 'Usuários', icon: <UserPlus size={16} />, adminOnly: true },
+  { id: 'aparencia', label: 'Aparência', icon: <Palette size={16} /> },
 ];
 
 export default function Configuracoes() {
@@ -959,6 +1024,7 @@ export default function Configuracoes() {
         {activeTab === 'link' && <TabLink />}
         {activeTab === 'ministerios' && <TabMinisterios onToast={showToast} />}
         {activeTab === 'usuarios' && isAdmin && <TabUsuarios onToast={showToast} />}
+        {activeTab === 'aparencia' && <TabAparencia />}
       </div>
 
       {toast && <Toast message={toast} onClose={() => setToast('')} />}

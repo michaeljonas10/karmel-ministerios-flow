@@ -4,7 +4,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line,
 } from 'recharts';
-import { Users, TrendingUp, Award, AlertTriangle, Phone, UserPlus, X, Check } from 'lucide-react';
+import { Users, TrendingUp, Award, AlertTriangle, Phone, UserPlus, X, Check, Upload } from 'lucide-react';
+import ImportModal from '../components/ImportModal';
 import { ministries } from '../data/ministries';
 import { getDaysSinceLastContact } from '../data/volunteers';
 import { STAGE_LABELS, STAGE_ORDER } from '../types';
@@ -184,6 +185,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { volunteers, loading, refetch } = useVolunteers();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // KPI calculations
   const total = volunteers.length;
@@ -256,19 +258,36 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-500 text-sm mt-1">Visão geral da jornada de voluntários — maio 2026</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-colors"
-        >
-          <UserPlus size={16} />
-          Adicionar Voluntário
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-colors"
+          >
+            <Upload size={16} />
+            Importar CSV
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-colors"
+            style={{ backgroundColor: 'var(--accent)' }}
+          >
+            <UserPlus size={16} />
+            Adicionar Voluntário
+          </button>
+        </div>
       </div>
 
       {showAddModal && (
         <AddVolunteerModal
           onClose={() => setShowAddModal(false)}
           onSaved={() => refetch()}
+        />
+      )}
+
+      {showImportModal && (
+        <ImportModal
+          onClose={() => setShowImportModal(false)}
+          onImported={() => { refetch(); setShowImportModal(false); }}
         />
       )}
 
