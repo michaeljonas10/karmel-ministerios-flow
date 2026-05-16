@@ -1,28 +1,74 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Phone, Mail, Calendar, User, ChevronRight,
   CheckCircle, MessageSquare, Clock
 } from 'lucide-react';
-import { getVolunteerById, getDaysSinceLastContact } from '../data/volunteers';
+import { getDaysSinceLastContact } from '../data/volunteers';
 import { getMinistryById } from '../data/ministries';
 import { STAGE_LABELS, STAGE_ORDER } from '../types';
+import type { Volunteer } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
 import StageProgressBar from '../components/StageProgressBar';
+import { supabase } from '../lib/supabase';
 
 function formatDate(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 export default function VolunteerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const volunteerData = getVolunteerById(id || '');
-  const [volunteer, setVolunteer] = useState(volunteerData);
+  const [volunteer, setVolunteer] = useState<Volunteer | null>(null);
+  const [loading, setLoading] = useState(true);
   const [noteInput, setNoteInput] = useState('');
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+
+  useEffect(() => {
+    async function fetchVolunteer() {
+      if (!id) return;
+      const { data, error } = await supabase
+        .from('volunteers')
+        .select('*, stage_history(*)')
+        .eq('id', id)
+        .single();
+
+      if (data && !error) {
+        setVolunteer({
+          id: data.id,
+          name: data.name,
+          phone: data.phone,
+          email: data.email,
+          registeredAt: data.registered_at,
+          ministryId: data.ministry_id,
+          subArea: data.sub_area,
+          coordinator: data.coordinator,
+          currentStage: data.current_stage,
+          stageHistory: (data.stage_history || []).map((h: { stage: string; date: string; note?: string }) => ({
+            stage: h.stage,
+            date: h.date,
+            note: h.note,
+          })),
+          notes: data.notes,
+          lastContactDate: data.last_contact_date,
+          alertDays: data.alert_days,
+        });
+      }
+      setLoading(false);
+    }
+    fetchVolunteer();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-400 text-sm">Carregando...</p>
+      </div>
+    );
+  }
 
   if (!volunteer) {
     return (
@@ -48,30 +94,40 @@ export default function VolunteerDetail() {
     setTimeout(() => setToastMsg(''), 3000);
   }
 
-  function markContacted() {
-    setVolunteer(v => v ? { ...v, lastContactDate: '2026-05-15', alertDays: 0 } : v);
+  async function markContacted() {
+    if (!volunteer) return;
+    const now = new Date().toISOString();
+    setVolunteer(v => v ? { ...v, lastContactDate: now, alertDays: 0 } : v);
+    await supabase.from('volunteers').update({ last_contact_date: now }).eq('id', volunteer.id);
     showToast('Contato registrado!');
   }
 
-  function advanceStage() {
-    if (!canAdvance) return;
+  async function advanceStage() {
+    if (!volunteer || !canAdvance) return;
     const nextStage = STAGE_ORDER[currentIdx + 1];
+    const now = new Date().toISOString();
     setVolunteer(v => v ? {
       ...v,
       currentStage: nextStage,
-      lastContactDate: '2026-05-15',
+      lastContactDate: now,
       alertDays: 0,
-      stageHistory: [...v.stageHistory, { stage: nextStage, date: '2026-05-15' }],
+      stageHistory: [...v.stageHistory, { stage: nextStage, date: now }],
     } : v);
+    await supabase.from('volunteers').update({ current_stage: nextStage, last_contact_date: now }).eq('id', volunteer.id);
+    await supabase.from('stage_history').insert({ volunteer_id: volunteer.id, stage: nextStage, date: now });
     showToast(`Avançado para: ${STAGE_LABELS[nextStage]}`);
   }
 
-  function addNote() {
-    if (!noteInput.trim()) return;
+  async function addNote() {
+    if (!volunteer || !noteInput.trim()) return;
     const note = noteInput.trim();
-    setVolunteer(v => v ? { ...v, notes: v.notes ? `${v.notes}\n[${new Date().toLocaleDateString('pt-BR')}] ${note}` : `[${new Date().toLocaleDateString('pt-BR')}] ${note}` } : v);
+    const updatedNotes = volunteer.notes
+      ? `${volunteer.notes}\n[${new Date().toLocaleDateString('pt-BR')}] ${note}`
+      : `[${new Date().toLocaleDateString('pt-BR')}] ${note}`;
+    setVolunteer(v => v ? { ...v, notes: updatedNotes } : v);
     setNoteInput('');
     setShowNoteInput(false);
+    await supabase.from('volunteers').update({ notes: updatedNotes }).eq('id', volunteer.id);
     showToast('Nota adicionada!');
   }
 
@@ -254,7 +310,7 @@ export default function VolunteerDetail() {
                   </div>
                   <div className="pb-4">
                     <p className={`text-sm font-medium ${isFirst ? 'text-indigo-600' : 'text-gray-700'}`}>
-                      {STAGE_LABELS[entry.stage]}
+                      {STAGE_LABELS[entry.stage as keyof typeof STAGE_LABELS] || entry.stage}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">{formatDate(entry.date)}</p>
                     {entry.note && (

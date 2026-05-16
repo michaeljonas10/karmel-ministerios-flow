@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LayoutGrid, List, Search, Users, AlertTriangle } from 'lucide-react';
 import { getMinistryById } from '../data/ministries';
-import { getVolunteersByMinistry, getDaysSinceLastContact } from '../data/volunteers';
+import { getDaysSinceLastContact } from '../data/volunteers';
 import { STAGE_ORDER, STAGE_LABELS } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
 import VolunteerCard from '../components/VolunteerCard';
+import { useVolunteers } from '../hooks/useVolunteers';
 
 export default function MinistryPanel() {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +14,7 @@ export default function MinistryPanel() {
   const ministry = getMinistryById(id || '');
   const [view, setView] = useState<'kanban' | 'table'>('table');
   const [search, setSearch] = useState('');
+  const { volunteers, loading } = useVolunteers();
 
   if (!ministry) {
     return (
@@ -22,7 +24,15 @@ export default function MinistryPanel() {
     );
   }
 
-  const allVolunteers = getVolunteersByMinistry(ministry.id);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-400 text-sm">Carregando dados...</p>
+      </div>
+    );
+  }
+
+  const allVolunteers = volunteers.filter(v => v.ministryId === ministry.id);
   const filtered = allVolunteers.filter(v =>
     v.name.toLowerCase().includes(search.toLowerCase()) ||
     v.subArea.toLowerCase().includes(search.toLowerCase()) ||

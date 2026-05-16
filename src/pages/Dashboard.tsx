@@ -4,62 +4,11 @@ import {
   PieChart, Pie, Cell, LineChart, Line,
 } from 'recharts';
 import { Users, TrendingUp, Award, AlertTriangle, Phone } from 'lucide-react';
-import { volunteers, getAlertVolunteers, getDaysSinceLastContact } from '../data/volunteers';
 import { ministries } from '../data/ministries';
+import { getDaysSinceLastContact } from '../data/volunteers';
 import { STAGE_LABELS, STAGE_ORDER } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
-
-// KPI calculations
-const total = volunteers.length;
-const established = volunteers.filter(v => v.currentStage === 'estabelecido').length;
-const inJourney = volunteers.filter(v => v.currentStage !== 'estabelecido').length;
-const alerts = getAlertVolunteers(7);
-
-// Funnel data
-const funnelData = STAGE_ORDER.map(stage => ({
-  name: STAGE_LABELS[stage],
-  count: volunteers.filter(v => v.currentStage === stage).length,
-  shortName: STAGE_LABELS[stage].split(' ')[0],
-}));
-
-// Ministry pie data
-const ministryData = ministries.map(m => ({
-  name: m.name,
-  value: volunteers.filter(v => v.ministryId === m.id).length,
-  color: m.color,
-}));
-
-// Timeline: last 12 weeks
-function getWeeklyData() {
-  const weeks = [];
-  for (let w = 11; w >= 0; w--) {
-    const weekStart = new Date('2026-05-15');
-    weekStart.setDate(weekStart.getDate() - w * 7 - 6);
-    const weekEnd = new Date('2026-05-15');
-    weekEnd.setDate(weekEnd.getDate() - w * 7);
-    const count = volunteers.filter(v => {
-      const d = new Date(v.registeredAt);
-      return d >= weekStart && d <= weekEnd;
-    }).length;
-    weeks.push({
-      week: `S${12 - w}`,
-      cadastros: count,
-    });
-  }
-  return weeks;
-}
-
-// Coordinator stats
-function getCoordinatorStats() {
-  const stats: Record<string, number> = {};
-  volunteers.forEach(v => {
-    stats[v.coordinator] = (stats[v.coordinator] || 0) + 1;
-  });
-  return Object.entries(stats)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([name, count]) => ({ name, count }));
-}
+import { useVolunteers } from '../hooks/useVolunteers';
 
 function KPICard({
   label, value, sub, icon, color
@@ -80,17 +29,73 @@ function KPICard({
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { volunteers, loading } = useVolunteers();
+
+  // KPI calculations
+  const total = volunteers.length;
+  const established = volunteers.filter(v => v.currentStage === 'estabelecido').length;
+  const inJourney = volunteers.filter(v => v.currentStage !== 'estabelecido').length;
+  const alerts = volunteers.filter(v => v.alertDays !== undefined && v.alertDays >= 7);
+
+  // Funnel data
+  const funnelData = STAGE_ORDER.map(stage => ({
+    name: STAGE_LABELS[stage],
+    count: volunteers.filter(v => v.currentStage === stage).length,
+    shortName: STAGE_LABELS[stage].split(' ')[0],
+  }));
+
+  // Ministry pie data
+  const ministryData = ministries.map(m => ({
+    name: m.name,
+    value: volunteers.filter(v => v.ministryId === m.id).length,
+    color: m.color,
+  }));
+
+  // Timeline: last 12 weeks
+  function getWeeklyData() {
+    const weeks = [];
+    for (let w = 11; w >= 0; w--) {
+      const weekStart = new Date('2026-05-15');
+      weekStart.setDate(weekStart.getDate() - w * 7 - 6);
+      const weekEnd = new Date('2026-05-15');
+      weekEnd.setDate(weekEnd.getDate() - w * 7);
+      const count = volunteers.filter(v => {
+        const d = new Date(v.registeredAt);
+        return d >= weekStart && d <= weekEnd;
+      }).length;
+      weeks.push({
+        week: `S${12 - w}`,
+        cadastros: count,
+      });
+    }
+    return weeks;
+  }
+
+  // Coordinator stats
+  function getCoordinatorStats() {
+    const stats: Record<string, number> = {};
+    volunteers.forEach(v => {
+      stats[v.coordinator] = (stats[v.coordinator] || 0) + 1;
+    });
+    return Object.entries(stats)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([name, count]) => ({ name, count }));
+  }
+
   const weeklyData = getWeeklyData();
   const coordinatorStats = getCoordinatorStats();
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-400 text-sm">Carregando dados...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 lg:p-6 space-y-6">
-      {/* Demo banner */}
-      <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
-        <span className="text-indigo-600 text-sm font-medium">Modo Demo</span>
-        <span className="text-indigo-400 text-sm">— Este painel usa dados de exemplo realistas da Igreja Karmel / Lagoinha.</span>
-      </div>
-
       {/* Title */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
@@ -234,7 +239,7 @@ export default function Dashboard() {
                   <div
                     className="h-1.5 rounded-full"
                     style={{
-                      width: `${(c.count / coordinatorStats[0].count) * 100}%`,
+                      width: coordinatorStats.length > 0 ? `${(c.count / coordinatorStats[0].count) * 100}%` : '0%',
                       backgroundColor: i === 0 ? '#4f46e5' : i === 1 ? '#6366f1' : '#818cf8',
                     }}
                   />

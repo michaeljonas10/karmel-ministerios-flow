@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Filter, Phone, ChevronRight, CheckCircle, Plus } from 'lucide-react';
-import { volunteers as initialVolunteers, getDaysSinceLastContact } from '../data/volunteers';
+import { getDaysSinceLastContact } from '../data/volunteers';
 import { ministries } from '../data/ministries';
 import type { Volunteer } from '../types';
 import { STAGE_ORDER } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
+import { useVolunteers } from '../hooks/useVolunteers';
+import { supabase } from '../lib/supabase';
 
 type DaysFilter = 'all' | '7' | '14' | '30';
 
@@ -25,48 +27,57 @@ function getDaysBadge(days: number): string {
 
 export default function FollowUp() {
   const navigate = useNavigate();
+  const { volunteers, loading, setVolunteers } = useVolunteers();
   const [search, setSearch] = useState('');
   const [ministryFilter, setMinistryFilter] = useState('all');
   const [coordinatorFilter, setCoordinatorFilter] = useState('all');
   const [daysFilter, setDaysFilter] = useState<DaysFilter>('7');
-  const [volunteerState, setVolunteerState] = useState<Volunteer[]>(initialVolunteers);
   const [toastMsg, setToastMsg] = useState('');
 
-  const allCoordinators = [...new Set(initialVolunteers.map(v => v.coordinator))].sort();
+  const allCoordinators = [...new Set(volunteers.map(v => v.coordinator))].sort();
 
   function showToast(msg: string) {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 3000);
   }
 
-  function markContacted(id: string) {
-    setVolunteerState(prev => prev.map(v =>
+  async function markContacted(id: string) {
+    const now = new Date().toISOString();
+    setVolunteers((prev: Volunteer[]) => prev.map(v =>
       v.id === id
-        ? { ...v, lastContactDate: '2026-05-15', alertDays: 0 }
+        ? { ...v, lastContactDate: now, alertDays: 0 }
         : v
     ));
+    await supabase.from('volunteers').update({ last_contact_date: now }).eq('id', id);
     showToast('Contato registrado com sucesso!');
   }
 
-  function advanceStage(id: string) {
-    setVolunteerState(prev => prev.map(v => {
+  async function advanceStage(id: string) {
+    const volunteer = volunteers.find(v => v.id === id);
+    if (!volunteer) return;
+    const currentIdx = STAGE_ORDER.indexOf(volunteer.currentStage);
+    if (currentIdx === STAGE_ORDER.length - 1) return;
+    const nextStage = STAGE_ORDER[currentIdx + 1];
+    const now = new Date().toISOString();
+
+    setVolunteers((prev: Volunteer[]) => prev.map(v => {
       if (v.id !== id) return v;
-      const currentIdx = STAGE_ORDER.indexOf(v.currentStage);
-      if (currentIdx === STAGE_ORDER.length - 1) return v;
-      const nextStage = STAGE_ORDER[currentIdx + 1];
       return {
         ...v,
         currentStage: nextStage,
-        lastContactDate: '2026-05-15',
+        lastContactDate: now,
         alertDays: 0,
-        stageHistory: [...v.stageHistory, { stage: nextStage, date: '2026-05-15' }],
+        stageHistory: [...v.stageHistory, { stage: nextStage, date: now }],
       };
     }));
+
+    await supabase.from('volunteers').update({ current_stage: nextStage, last_contact_date: now }).eq('id', id);
+    await supabase.from('stage_history').insert({ volunteer_id: id, stage: nextStage, date: now });
     showToast('Etapa avançada com sucesso!');
   }
 
   // Filter
-  const filtered = volunteerState.filter(v => {
+  const filtered = volunteers.filter(v => {
     const days = getDaysSinceLastContact(v);
     const minDays = daysFilter === 'all' ? 0 : parseInt(daysFilter);
     if (days < minDays) return false;
@@ -78,11 +89,19 @@ export default function FollowUp() {
   }).sort((a, b) => getDaysSinceLastContact(b) - getDaysSinceLastContact(a));
 
   const stats = {
-    red: volunteerState.filter(v => getDaysSinceLastContact(v) >= 30).length,
-    orange: volunteerState.filter(v => { const d = getDaysSinceLastContact(v); return d >= 14 && d < 30; }).length,
-    yellow: volunteerState.filter(v => { const d = getDaysSinceLastContact(v); return d >= 7 && d < 14; }).length,
-    green: volunteerState.filter(v => getDaysSinceLastContact(v) < 7).length,
+    red: volunteers.filter(v => getDaysSinceLastContact(v) >= 30).length,
+    orange: volunteers.filter(v => { const d = getDaysSinceLastContact(v); return d >= 14 && d < 30; }).length,
+    yellow: volunteers.filter(v => { const d = getDaysSinceLastContact(v); return d >= 7 && d < 14; }).length,
+    green: volunteers.filter(v => getDaysSinceLastContact(v) < 7).length,
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-400 text-sm">Carregando dados...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
