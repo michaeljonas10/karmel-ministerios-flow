@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { MinistriesProvider } from './contexts/MinistriesContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import MinistryPanel from './pages/MinistryPanel';
@@ -118,7 +119,9 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <ThemeProvider>
-          <AppRoutes />
+          <MinistriesProvider>
+            <AppRoutes />
+          </MinistriesProvider>
         </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>

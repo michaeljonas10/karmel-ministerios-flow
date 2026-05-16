@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Camera, Music, Baby, Zap, Heart, Home,
   Bell, Menu, X, ChevronRight, AlertTriangle, Settings, LogOut, ShieldCheck, User
 } from 'lucide-react';
-import { ministries } from '../data/ministries';
+import { useMinistries } from '../contexts/MinistriesContext';
 import { getAlertVolunteers } from '../data/volunteers';
 import { useAuth } from '../contexts/AuthContext';
 import ProfileModal from './ProfileModal';
@@ -28,6 +28,7 @@ export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const alertCount = getAlertVolunteers(7).length;
   const { profile, isAdmin, signOut } = useAuth();
+  const { ministries } = useMinistries();
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
