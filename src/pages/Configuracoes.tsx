@@ -20,7 +20,7 @@ interface ChurchSettings {
   logo_url: string;
 }
 
-const BASE_URL = 'https://karmel-ministerios-flow.vercel.app';
+const BASE_URL = 'https://pulse-ministerios.vercel.app';
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
 function Toast({ message, onClose }: { message: string; onClose: () => void }) {
@@ -40,8 +40,8 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 function TabIgreja({ onToast }: { onToast: (msg: string) => void }) {
   const [form, setForm] = useState<ChurchSettings>({
     id: 'main',
-    church_name: 'Igreja Karmel',
-    subtitle: 'Lagoinha BH',
+    church_name: 'Lagoinha Osasco',
+    subtitle: 'Lagoinha Osasco',
     cnpj: '',
     phone: '',
     address: '',
@@ -89,14 +89,14 @@ function TabIgreja({ onToast }: { onToast: (msg: string) => void }) {
   if (loading) return <div className="p-8 text-gray-400 text-sm">Carregando...</div>;
 
   const fields: { label: string; key: keyof ChurchSettings; placeholder?: string }[] = [
-    { label: 'Nome da Igreja', key: 'church_name', placeholder: 'Igreja Karmel' },
-    { label: 'Subtítulo / Slogan', key: 'subtitle', placeholder: 'Lagoinha BH' },
+    { label: 'Nome da Igreja', key: 'church_name', placeholder: 'Lagoinha Osasco' },
+    { label: 'Subtítulo / Slogan', key: 'subtitle', placeholder: 'Lagoinha Osasco' },
     { label: 'CNPJ', key: 'cnpj', placeholder: '00.000.000/0000-00' },
     { label: 'Telefone', key: 'phone', placeholder: '(31) 9 0000-0000' },
     { label: 'Endereço', key: 'address', placeholder: 'Rua das Flores, 123' },
     { label: 'Cidade', key: 'city', placeholder: 'Belo Horizonte - MG' },
-    { label: 'Website', key: 'website', placeholder: 'https://karmel.com.br' },
-    { label: 'Email de Contato', key: 'email', placeholder: 'contato@karmel.com.br' },
+    { label: 'Website', key: 'website', placeholder: 'https://lagoinha.com.br' },
+    { label: 'Email de Contato', key: 'email', placeholder: 'contato@lagoinha.com.br' },
     { label: 'Logo URL', key: 'logo_url', placeholder: 'https://...' },
   ];
 
@@ -840,7 +840,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                   type="email"
                   value={form.email}
                   onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-                  placeholder="coordenador@karmel.com.br"
+                  placeholder="coordenador@lagoinha.com.br"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>

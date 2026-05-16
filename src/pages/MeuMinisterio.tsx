@@ -87,7 +87,7 @@ export default function MeuMinisterio() {
             <span className="text-white font-bold text-sm">K</span>
           </div>
           <div>
-            <p className="text-gray-800 font-semibold text-sm">Karmel Flow</p>
+            <p className="text-gray-800 font-semibold text-sm">Pulse</p>
             <p className="text-gray-400 text-xs">Painel do Coordenador</p>
           </div>
         </div>

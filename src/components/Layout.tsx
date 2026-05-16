@@ -60,7 +60,7 @@ export default function Layout({ children }: LayoutProps) {
                 <span className="text-white font-bold text-sm">K</span>
               </div>
               <div>
-                <p className="text-white font-bold text-sm leading-tight">Karmel Flow</p>
+                <p className="text-white font-bold text-sm leading-tight">Pulse</p>
                 <p className="text-indigo-300 text-xs">Ministérios</p>
               </div>
             </div>
@@ -170,8 +170,8 @@ export default function Layout({ children }: LayoutProps) {
               <Menu size={22} />
             </button>
             <div>
-              <p className="text-gray-800 font-semibold text-sm">Karmel Ministérios Flow</p>
-              <p className="text-gray-400 text-xs">Igreja Karmel · Lagoinha BH</p>
+              <p className="text-gray-800 font-semibold text-sm">Pulse Ministérios</p>
+              <p className="text-gray-400 text-xs">Lagoinha Osasco</p>
             </div>
           </div>
 

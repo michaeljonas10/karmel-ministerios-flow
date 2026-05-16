@@ -19,7 +19,7 @@ interface ChurchInfo { church_name: string; subtitle: string; logo_url: string }
 
 function ChurchHeader() {
   const [info, setInfo] = useState<ChurchInfo>({
-    church_name: 'Karmel Flow',
+    church_name: 'Pulse',
     subtitle: 'Ministérios',
     logo_url: '',
   });
@@ -406,7 +406,7 @@ export default function CadastroVoluntario() {
 
         {/* Footer */}
         <p className="text-center text-indigo-300 text-xs mt-8">
-          Igreja Karmel · Lagoinha BH — Karmel Ministérios Flow
+          Lagoinha Osasco — Pulse Ministérios
         </p>
       </div>
     </>
