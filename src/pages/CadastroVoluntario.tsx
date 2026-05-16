@@ -34,9 +34,7 @@ function ChurchHeader() {
       {info.logo_url ? (
         <img src={info.logo_url} alt="Logo" className="h-16 w-16 object-contain rounded-2xl mb-3 shadow" />
       ) : (
-        <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-3 shadow backdrop-blur-sm">
-          <span className="text-white font-bold text-2xl">K</span>
-        </div>
+        <img src="/pulse-logo.svg" alt="Pulse" className="w-16 h-16 rounded-2xl mb-3 shadow" />
       )}
       <h1 className="text-white font-bold text-2xl">{info.church_name}</h1>
       <p className="text-indigo-200 text-sm">{info.subtitle}</p>

@@ -83,9 +83,7 @@ export default function MeuMinisterio() {
       {/* Top bar */}
       <header className="bg-white border-b border-gray-200 px-4 lg:px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">K</span>
-          </div>
+          <img src="/pulse-logo.svg" alt="Pulse" className="w-8 h-8 rounded-lg" />
           <div>
             <p className="text-gray-800 font-semibold text-sm">Pulse</p>
             <p className="text-gray-400 text-xs">Painel do Coordenador</p>

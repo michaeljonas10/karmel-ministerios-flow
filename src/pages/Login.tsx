@@ -38,9 +38,7 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-indigo-800 to-purple-900 flex flex-col items-center justify-center p-4">
       {/* Logo / Church header */}
       <div className="flex flex-col items-center mb-8">
-        <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-4 shadow-xl backdrop-blur-sm">
-          <span className="text-white font-bold text-2xl">K</span>
-        </div>
+        <img src="/pulse-logo.svg" alt="Pulse" className="w-16 h-16 rounded-2xl mb-4 shadow-xl" />
         <h1 className="text-white font-bold text-2xl leading-tight">Pulse</h1>
         <p className="text-indigo-200 text-sm mt-1">Ministérios · Lagoinha Osasco</p>
       </div>

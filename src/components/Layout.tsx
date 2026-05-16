@@ -56,9 +56,7 @@ export default function Layout({ children }: LayoutProps) {
         <div className="flex items-center justify-between px-4 py-5 border-b border-indigo-800">
           <div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-indigo-400 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">K</span>
-              </div>
+              <img src="/pulse-logo.svg" alt="Pulse" className="w-8 h-8 rounded-lg" />
               <div>
                 <p className="text-white font-bold text-sm leading-tight">Pulse</p>
                 <p className="text-indigo-300 text-xs">Ministérios</p>
