@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { name, email, password, ministry_id } = await req.json()
+    const { name, email, password, role, ministry_id, sub_areas } = await req.json()
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -17,46 +17,53 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Verify caller is admin (check their JWT)
+    // Verify caller
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
-    }
+    if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
 
-    const { data: { user: callerUser } } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
-    if (!callerUser) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
-    }
+    const { data: { user: caller } } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
+    if (!caller) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
 
     const { data: callerProfile } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', callerUser.id)
-      .single()
+      .from('user_profiles').select('role,ministry_id').eq('id', caller.id).single()
 
-    if (callerProfile?.role !== 'admin') {
+    const isAdmin = callerProfile?.role === 'admin'
+    const isLeader = callerProfile?.role === 'ministry_leader'
+
+    if (!isAdmin && !isLeader) {
       return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: corsHeaders })
     }
 
-    // Create user
+    // Leaders can only create coordinators for their own ministry
+    const targetRole = isAdmin ? (role || 'coordinator') : 'coordinator'
+    const targetMinistry = isAdmin ? ministry_id : callerProfile?.ministry_id
+
+    if (!targetMinistry) {
+      return new Response(JSON.stringify({ error: 'Ministério obrigatório' }), { status: 400, headers: corsHeaders })
+    }
+
+    if (isLeader && targetMinistry !== callerProfile?.ministry_id) {
+      return new Response(JSON.stringify({ error: 'Acesso negado' }), { status: 403, headers: corsHeaders })
+    }
+
+    // Create auth user
     const { data, error } = await supabase.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { name, role: 'coordinator' }
+      user_metadata: { name, role: targetRole }
     })
 
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: corsHeaders })
-    }
+    if (error) return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: corsHeaders })
 
     // Set profile
     await supabase.from('user_profiles').upsert({
       id: data.user.id,
       email,
       name,
-      role: 'coordinator',
-      ministry_id
+      role: targetRole,
+      ministry_id: targetMinistry,
+      sub_areas: sub_areas ?? [],
     })
 
     return new Response(
@@ -64,9 +71,6 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (e) {
-    return new Response(
-      JSON.stringify({ error: String(e) }),
-      { status: 500, headers: corsHeaders }
-    )
+    return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: corsHeaders })
   }
 })

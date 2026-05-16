@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Camera, Music, Baby, Zap, Heart, Home,
-  Bell, Menu, X, ChevronRight, AlertTriangle, Settings, LogOut, ShieldCheck, User
+  Bell, Menu, X, AlertTriangle, Settings, LogOut, ShieldCheck, User
 } from 'lucide-react';
 import { useMinistries } from '../contexts/MinistriesContext';
 import { getAlertVolunteers } from '../data/volunteers';
@@ -22,20 +22,47 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
+function SideLink({
+  to, end, icon, label, badge, onClose,
+}: {
+  to: string; end?: boolean; icon: React.ReactNode; label: string; badge?: number; onClose: () => void
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
+      style={({ isActive }) => ({
+        backgroundColor: isActive ? 'var(--sidebar-active)' : 'transparent',
+        color: isActive ? '#fff' : 'var(--sidebar-text)',
+      })}
+      onMouseEnter={e => {
+        if (!e.currentTarget.getAttribute('aria-current'))
+          (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--sidebar-hover)'
+      }}
+      onMouseLeave={e => {
+        if (!e.currentTarget.getAttribute('aria-current'))
+          (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'
+      }}
+      onClick={onClose}
+    >
+      {icon}
+      {label}
+      {badge !== undefined && (
+        <span className="ml-auto bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{badge}</span>
+      )}
+    </NavLink>
+  )
+}
+
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const navigate = useNavigate();
   const alertCount = getAlertVolunteers(7).length;
-  const { profile, isAdmin, signOut } = useAuth();
+  const { profile, isAdmin, isLeader, signOut } = useAuth();
   const { ministries } = useMinistries();
 
-  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-    ${isActive
-      ? 'text-white shadow-sm'
-      : 'hover:text-white'
-    }`;
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--body-bg)' }}>
@@ -81,134 +108,45 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-          <NavLink
-            to="/" end
-            className={({ isActive }) => navLinkClass({ isActive })}
-            style={({ isActive }) => ({
-              backgroundColor: isActive ? 'var(--sidebar-active)' : 'transparent',
-              color: isActive ? '#fff' : 'var(--sidebar-text)',
-            })}
-            onMouseEnter={e => {
-              if (!(e.currentTarget as HTMLAnchorElement).classList.contains('active')) {
-                (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--sidebar-hover)';
-              }
-            }}
-            onMouseLeave={e => {
-              if (!(e.currentTarget as HTMLAnchorElement).getAttribute('aria-current')) {
-                (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-              }
-            }}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <LayoutDashboard size={18} />
-            Dashboard
-          </NavLink>
+          {/* ── Admin: full navigation ── */}
+          {isAdmin && (
+            <>
+              <SideLink to="/" end icon={<LayoutDashboard size={18} />} label="Dashboard" onClose={() => setSidebarOpen(false)} />
 
-          <div className="pt-4 pb-1">
-            <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Ministérios</p>
-          </div>
+              <div className="pt-4 pb-1">
+                <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Ministérios</p>
+              </div>
+              {ministries.map(m => (
+                <SideLink key={m.id} to={`/ministerio/${m.id}`} icon={<span style={{ color: m.color }}>{iconMap[m.icon]}</span>} label={m.name} onClose={() => setSidebarOpen(false)} />
+              ))}
 
-          {ministries.map((ministry) => (
-            <NavLink
-              key={ministry.id}
-              to={`/ministerio/${ministry.id}`}
-              className={({ isActive }) => navLinkClass({ isActive })}
-              style={({ isActive }) => ({
-                backgroundColor: isActive ? 'var(--sidebar-active)' : 'transparent',
-                color: isActive ? '#fff' : 'var(--sidebar-text)',
-              })}
-              onMouseEnter={e => {
-                if (!(e.currentTarget as HTMLAnchorElement).getAttribute('aria-current')) {
-                  (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--sidebar-hover)';
-                }
-              }}
-              onMouseLeave={e => {
-                if (!(e.currentTarget as HTMLAnchorElement).getAttribute('aria-current')) {
-                  (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-                }
-              }}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <span style={{ color: ministry.color }}>{iconMap[ministry.icon]}</span>
-              {ministry.name}
-              <ChevronRight size={14} className="ml-auto opacity-50" />
-            </NavLink>
-          ))}
+              <div className="pt-4 pb-1">
+                <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Gestão</p>
+              </div>
+              <SideLink to="/follow-up" icon={<AlertTriangle size={18} />} label="Follow-up" badge={alertCount > 0 ? alertCount : undefined} onClose={() => setSidebarOpen(false)} />
 
-          {!isAdmin && profile?.ministry_id && (
-            <NavLink
-              to="/meu-ministerio"
-              className={({ isActive }) => navLinkClass({ isActive })}
-              style={({ isActive }) => ({
-                backgroundColor: isActive ? 'var(--sidebar-active)' : 'transparent',
-                color: isActive ? '#fff' : 'var(--sidebar-text)',
-              })}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <User size={18} style={{ color: 'var(--sidebar-muted)' }} />
-              Meu Ministério
-              <ChevronRight size={14} className="ml-auto opacity-50" />
-            </NavLink>
+              <div className="pt-4 pb-1">
+                <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Sistema</p>
+              </div>
+              <SideLink to="/configuracoes" icon={<Settings size={18} />} label="Configurações" onClose={() => setSidebarOpen(false)} />
+            </>
           )}
 
-          <div className="pt-4 pb-1">
-            <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Gestão</p>
-          </div>
+          {/* ── Ministry leader: their ministry + follow-up ── */}
+          {isLeader && (
+            <>
+              <SideLink to="/meu-ministerio" icon={<User size={18} />} label="Meu Ministério" onClose={() => setSidebarOpen(false)} />
+              <div className="pt-4 pb-1">
+                <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Gestão</p>
+              </div>
+              <SideLink to="/follow-up" icon={<AlertTriangle size={18} />} label="Follow-up" badge={alertCount > 0 ? alertCount : undefined} onClose={() => setSidebarOpen(false)} />
+            </>
+          )}
 
-          <NavLink
-            to="/follow-up"
-            className={({ isActive }) => navLinkClass({ isActive })}
-            style={({ isActive }) => ({
-              backgroundColor: isActive ? 'var(--sidebar-active)' : 'transparent',
-              color: isActive ? '#fff' : 'var(--sidebar-text)',
-            })}
-            onMouseEnter={e => {
-              if (!(e.currentTarget as HTMLAnchorElement).getAttribute('aria-current')) {
-                (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--sidebar-hover)';
-              }
-            }}
-            onMouseLeave={e => {
-              if (!(e.currentTarget as HTMLAnchorElement).getAttribute('aria-current')) {
-                (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-              }
-            }}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <AlertTriangle size={18} />
-            Follow-up
-            {alertCount > 0 && (
-              <span className="ml-auto bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
-                {alertCount}
-              </span>
-            )}
-          </NavLink>
-
-          <div className="pt-4 pb-1">
-            <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Sistema</p>
-          </div>
-
-          <NavLink
-            to="/configuracoes"
-            className={({ isActive }) => navLinkClass({ isActive })}
-            style={({ isActive }) => ({
-              backgroundColor: isActive ? 'var(--sidebar-active)' : 'transparent',
-              color: isActive ? '#fff' : 'var(--sidebar-text)',
-            })}
-            onMouseEnter={e => {
-              if (!(e.currentTarget as HTMLAnchorElement).getAttribute('aria-current')) {
-                (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--sidebar-hover)';
-              }
-            }}
-            onMouseLeave={e => {
-              if (!(e.currentTarget as HTMLAnchorElement).getAttribute('aria-current')) {
-                (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-              }
-            }}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <Settings size={18} />
-            Configurações
-          </NavLink>
+          {/* ── Coordinator: their sub-areas only ── */}
+          {!isAdmin && !isLeader && profile?.ministry_id && (
+            <SideLink to="/meu-ministerio" icon={<User size={18} />} label="Minha Sub-área" onClose={() => setSidebarOpen(false)} />
+          )}
         </nav>
 
         {/* User info + logout */}
@@ -225,7 +163,7 @@ export default function Layout({ children }: LayoutProps) {
                 </p>
               </div>
               <p className="text-xs mb-2" style={{ color: 'var(--sidebar-muted)' }}>
-                {profile.role === 'admin' ? 'Administrador' : 'Coordenador'}
+                {profile.role === 'admin' ? 'Administrador' : profile.role === 'ministry_leader' ? 'Líder de Ministério' : 'Coordenador'}
               </p>
               <button
                 onClick={() => signOut().then(() => navigate('/login'))}

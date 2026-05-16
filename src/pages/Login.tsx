@@ -14,7 +14,7 @@ export default function Login() {
 
   // If already logged in, redirect
   if (!loading && user && profile) {
-    return <Navigate to={profile.role === 'coordinator' ? '/meu-ministerio' : '/'} replace />
+    return <Navigate to={profile.role === 'admin' ? '/' : '/meu-ministerio'} replace />
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

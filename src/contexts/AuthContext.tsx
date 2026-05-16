@@ -7,8 +7,9 @@ export interface UserProfile {
   id: string
   email: string
   name: string
-  role: 'admin' | 'coordinator'
+  role: 'admin' | 'ministry_leader' | 'coordinator'
   ministry_id: string | null
+  sub_areas: string[]
   avatar_url: string | null
 }
 
@@ -17,6 +18,7 @@ interface AuthContextType {
   profile: UserProfile | null
   loading: boolean
   isAdmin: boolean
+  isLeader: boolean
   isCoordinator: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
@@ -36,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select('*')
       .eq('id', userId)
       .single()
-    if (data) setProfile(data as UserProfile)
+    if (data) setProfile({ sub_areas: [], ...data } as UserProfile)
   }
 
   useEffect(() => {
@@ -106,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       loading,
       isAdmin: profile?.role === 'admin',
+      isLeader: profile?.role === 'ministry_leader',
       isCoordinator: profile?.role === 'coordinator',
       signIn,
       signOut,

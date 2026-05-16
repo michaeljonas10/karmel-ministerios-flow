@@ -669,9 +669,13 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', password: '', ministry_id: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'coordinator', ministry_id: '', sub_areas: [] as string[] });
   const [showPwd, setShowPwd] = useState(false);
   const [formError, setFormError] = useState('');
+
+  const selectedMinistry = ministries.find(m => m.id === form.ministry_id);
+  const toggleSubArea = (id: string) =>
+    setForm(p => ({ ...p, sub_areas: p.sub_areas.includes(id) ? p.sub_areas.filter(s => s !== id) : [...p.sub_areas, id] }));
 
   const fetchUsers = async () => {
     const { data } = await supabase.from('user_profiles').select('*').order('created_at', { ascending: false });
@@ -682,7 +686,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
   useEffect(() => { fetchUsers(); }, []);
 
   const openModal = () => {
-    setForm({ name: '', email: '', password: '', ministry_id: '' });
+    setForm({ name: '', email: '', password: '', role: 'coordinator', ministry_id: '', sub_areas: [] });
     setFormError('');
     setModalOpen(true);
   };
@@ -699,26 +703,25 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
       'https://fzbxzcwopgwsojxmckpa.supabase.co/functions/v1/create-coordinator',
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({
           name: form.name.trim(),
           email: form.email.trim(),
           password: form.password,
+          role: form.role,
           ministry_id: form.ministry_id,
+          sub_areas: form.role === 'coordinator' ? form.sub_areas : [],
         }),
       }
     );
     const json = await res.json();
     setSaving(false);
     if (!res.ok || json.error) {
-      setFormError(json.error || 'Erro ao criar coordenador.');
+      setFormError(json.error || 'Erro ao criar usuário.');
     } else {
       setModalOpen(false);
       await fetchUsers();
-      onToast(`Coordenador "${form.name}" criado com sucesso!`);
+      onToast(`${form.role === 'ministry_leader' ? 'Líder' : 'Coordenador'} "${form.name}" criado com sucesso!`);
     }
   };
 
@@ -748,7 +751,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
             onClick={openModal}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
-            <UserPlus size={15} /> Adicionar Coordenador
+            <UserPlus size={15} /> Adicionar Usuário
           </button>
         </div>
 
@@ -783,6 +786,8 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                   <td className="px-5 py-3.5">
                     {u.role === 'admin'
                       ? <span className="inline-block bg-indigo-100 text-indigo-700 text-xs font-semibold px-2.5 py-1 rounded-full">Admin</span>
+                      : u.role === 'ministry_leader'
+                      ? <span className="inline-block bg-amber-100 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full">Líder</span>
                       : <span className="inline-block bg-purple-100 text-purple-700 text-xs font-semibold px-2.5 py-1 rounded-full">Coordenador</span>
                     }
                   </td>
@@ -821,7 +826,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
         >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <h2 className="font-bold text-gray-900 text-lg">Novo Coordenador</h2>
+              <h2 className="font-bold text-gray-900 text-lg">Novo Usuário</h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
@@ -866,10 +871,27 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                 </div>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Perfil *</label>
+                <div className="flex gap-2">
+                  {[
+                    { value: 'coordinator', label: 'Coordenador' },
+                    { value: 'ministry_leader', label: 'Líder de Ministério' },
+                  ].map(opt => (
+                    <label key={opt.value} className="flex-1 flex items-center gap-2 cursor-pointer border rounded-lg px-3 py-2 text-sm transition-colors"
+                      style={form.role === opt.value ? { borderColor: 'var(--accent)', backgroundColor: 'var(--accent-light)', color: 'var(--accent-text)' } : { borderColor: '#d1d5db', color: '#374151' }}>
+                      <input type="radio" name="role" value={opt.value} checked={form.role === opt.value}
+                        onChange={e => setForm(p => ({ ...p, role: e.target.value, sub_areas: [] }))}
+                        className="hidden" />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ministério *</label>
                 <select
                   value={form.ministry_id}
-                  onChange={e => setForm(p => ({ ...p, ministry_id: e.target.value }))}
+                  onChange={e => setForm(p => ({ ...p, ministry_id: e.target.value, sub_areas: [] }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">Selecione...</option>
@@ -878,6 +900,19 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                   ))}
                 </select>
               </div>
+              {form.role === 'coordinator' && selectedMinistry && selectedMinistry.subAreas.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Sub-áreas que irá coordenar</label>
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                    {selectedMinistry.subAreas.map(sa => (
+                      <label key={sa.id} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                        <input type="checkbox" checked={form.sub_areas.includes(sa.id)} onChange={() => toggleSubArea(sa.id)} className="accent-indigo-600" />
+                        {sa.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
               {formError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
                   {formError}
@@ -896,7 +931,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                 disabled={saving}
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
               >
-                {saving ? 'Criando...' : 'Criar Coordenador'}
+                {saving ? 'Criando...' : form.role === 'ministry_leader' ? 'Criar Líder' : 'Criar Coordenador'}
               </button>
             </div>
           </div>

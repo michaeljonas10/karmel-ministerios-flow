@@ -38,7 +38,7 @@ function CoordinatorRedirect({ children }: { children: ReactNode }) {
   if (!user) return <Navigate to="/login" replace />;
 
   // Coordinators who hit "/" get redirected to their panel
-  if (profile?.role === 'coordinator') return <Navigate to="/meu-ministerio" replace />;
+  if (profile?.role !== 'admin') return <Navigate to="/meu-ministerio" replace />;
 
   return <>{children}</>;
 }
