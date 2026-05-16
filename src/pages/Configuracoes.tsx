@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { ministries } from '../data/ministries';
-import { Settings, Church, Link2, Users, Copy, Check, Plus, X } from 'lucide-react';
+import { useMinistries } from '../hooks/useMinistries';
+import { Settings, Church, Link2, Users, Copy, Check, Plus, X, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import type { Ministry, SubArea } from '../types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface ChurchSettings {
@@ -15,11 +16,6 @@ interface ChurchSettings {
   website: string;
   email: string;
   logo_url: string;
-}
-
-interface MinistryCoordinators {
-  ministry_id: string;
-  coordinators: string[];
 }
 
 const BASE_URL = 'https://karmel-ministerios-flow.vercel.app';
@@ -140,6 +136,7 @@ function TabIgreja({ onToast }: { onToast: (msg: string) => void }) {
 
 // ─── Tab 2 — Link de Cadastro ─────────────────────────────────────────────────
 function TabLink() {
+  const { ministries } = useMinistries();
   const [copied, setCopied] = useState('');
   const [selectedMinistry, setSelectedMinistry] = useState('');
 
@@ -229,115 +226,434 @@ function TabLink() {
   );
 }
 
-// ─── Tab 3 — Ministérios & Coordenadores ────────────────────────────────────
-function TabMinisterios({ onToast }: { onToast: (msg: string) => void }) {
-  const [coordsMap, setCoordsMap] = useState<Record<string, string[]>>({});
-  const [editingNew, setEditingNew] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
+// ─── Ministry Modal ──────────────────────────────────────────────────────────
+const COLOR_OPTIONS = [
+  '#3b82f6','#8b5cf6','#f59e0b','#10b981','#6366f1','#f97316',
+  '#ec4899','#14b8a6','#ef4444','#84cc16','#06b6d4','#a855f7',
+];
+const ICON_OPTIONS = [
+  'Camera','Music','Baby','Zap','Heart','Home',
+  'Star','Shield','BookOpen','Globe','Users','Cross',
+  'Mic','Film','Radio','Tv','Headphones','Volume2',
+];
 
-  useEffect(() => {
-    // Initialize from static data
-    const init: Record<string, string[]> = {};
-    ministries.forEach(m => { init[m.id] = [...m.coordinators]; });
+interface MinistryForm {
+  id: string;
+  name: string;
+  color: string;
+  icon: string;
+  coordinators: string[];
+  subAreas: SubArea[];
+}
 
-    supabase.from('ministry_coordinators').select('*').then(({ data }) => {
-      if (data) {
-        (data as MinistryCoordinators[]).forEach(row => {
-          init[row.ministry_id] = row.coordinators;
-        });
-      }
-      setCoordsMap(init);
-      setLoaded(true);
-    });
-  }, []);
+function emptyForm(): MinistryForm {
+  return { id: '', name: '', color: '#3b82f6', icon: 'Star', coordinators: [], subAreas: [] };
+}
 
-  const removeCoord = (ministryId: string, name: string) => {
-    setCoordsMap(prev => ({
-      ...prev,
-      [ministryId]: prev[ministryId].filter(c => c !== name),
-    }));
+function MinistryModal({
+  initial,
+  onSave,
+  onClose,
+  saving,
+}: {
+  initial: MinistryForm;
+  onSave: (f: MinistryForm) => void;
+  onClose: () => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState<MinistryForm>(initial);
+  const [newCoord, setNewCoord] = useState('');
+  const [newSub, setNewSub] = useState('');
+  const [newSubCoord, setNewSubCoord] = useState('');
+  const isNew = !initial.id;
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  const set = (k: keyof MinistryForm) => (v: string) =>
+    setForm(p => ({ ...p, [k]: v }));
+
+  const addCoord = () => {
+    const t = newCoord.trim();
+    if (!t || form.coordinators.includes(t)) return;
+    setForm(p => ({ ...p, coordinators: [...p.coordinators, t] }));
+    setNewCoord('');
   };
 
-  const addCoord = (ministryId: string) => {
-    const name = (editingNew[ministryId] || '').trim();
+  const removeCoord = (c: string) =>
+    setForm(p => ({ ...p, coordinators: p.coordinators.filter(x => x !== c) }));
+
+  const addSub = () => {
+    const name = newSub.trim();
     if (!name) return;
-    setCoordsMap(prev => ({
-      ...prev,
-      [ministryId]: [...(prev[ministryId] || []), name],
+    const id = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    setForm(p => ({
+      ...p,
+      subAreas: [...p.subAreas, { id, name, coordinator: newSubCoord.trim() || '', volunteerCount: 0 }],
     }));
-    setEditingNew(prev => ({ ...prev, [ministryId]: '' }));
+    setNewSub('');
+    setNewSubCoord('');
   };
 
-  const saveMinistry = async (ministryId: string) => {
-    setSaving(ministryId);
-    const { error } = await supabase
-      .from('ministry_coordinators')
-      .upsert({ ministry_id: ministryId, coordinators: coordsMap[ministryId] || [] });
-    setSaving(null);
-    if (!error) onToast('Coordenadores salvos!');
-  };
+  const removeSub = (id: string) =>
+    setForm(p => ({ ...p, subAreas: p.subAreas.filter(s => s.id !== id) }));
 
-  if (!loaded) return <div className="p-8 text-gray-400 text-sm">Carregando...</div>;
+  const updateSubCoord = (id: string, coord: string) =>
+    setForm(p => ({
+      ...p,
+      subAreas: p.subAreas.map(s => s.id === id ? { ...s, coordinator: coord } : s),
+    }));
 
   return (
-    <div className="space-y-4 max-w-2xl">
-      {ministries.map(ministry => (
-        <div key={ministry.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <span
-              className="w-3 h-3 rounded-full flex-shrink-0"
-              style={{ backgroundColor: ministry.color }}
-            />
-            <h3 className="font-semibold text-gray-800">{ministry.name}</h3>
-          </div>
-
-          {/* Coordinator chips */}
-          <div className="flex flex-wrap gap-2">
-            {(coordsMap[ministry.id] || []).map(coord => (
-              <span
-                key={coord}
-                className="flex items-center gap-1.5 bg-gray-100 text-gray-700 text-sm px-3 py-1 rounded-full"
-              >
-                {coord}
-                <button
-                  onClick={() => removeCoord(ministry.id, coord)}
-                  className="text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  <X size={13} />
-                </button>
-              </span>
-            ))}
-          </div>
-
-          {/* Add coordinator */}
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={editingNew[ministry.id] || ''}
-              onChange={e => setEditingNew(prev => ({ ...prev, [ministry.id]: e.target.value }))}
-              onKeyDown={e => e.key === 'Enter' && addCoord(ministry.id)}
-              placeholder="Adicionar coordenador..."
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <button
-              onClick={() => addCoord(ministry.id)}
-              className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-            >
-              <Plus size={15} /> Adicionar
-            </button>
-          </div>
-
-          <button
-            onClick={() => saveMinistry(ministry.id)}
-            disabled={saving === ministry.id}
-            className="text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-4 py-1.5 rounded-lg transition-colors font-medium"
-          >
-            {saving === ministry.id ? 'Salvando...' : 'Salvar'}
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={e => e.target === overlayRef.current && onClose()}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 className="font-bold text-gray-900 text-lg">
+            {isNew ? 'Novo Ministério' : `Editar — ${initial.name}`}
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X size={20} />
           </button>
         </div>
-      ))}
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+
+          {/* Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Ministério *</label>
+            <input
+              value={form.name}
+              onChange={e => set('name')(e.target.value)}
+              placeholder="ex: Comunicação"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          {/* Color */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Cor</label>
+            <div className="flex flex-wrap gap-2">
+              {COLOR_OPTIONS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => set('color')(c)}
+                  className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${form.color === c ? 'border-gray-800 scale-110' : 'border-transparent'}`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Icon */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Ícone</label>
+            <div className="flex flex-wrap gap-2">
+              {ICON_OPTIONS.map(ic => (
+                <button
+                  key={ic}
+                  onClick={() => set('icon')(ic)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    form.icon === ic
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'
+                  }`}
+                >
+                  {ic}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: form.color + '20' }}>
+            <span className="w-4 h-4 rounded-full" style={{ backgroundColor: form.color }} />
+            <span className="font-semibold text-gray-800">{form.name || 'Prévia do ministério'}</span>
+          </div>
+
+          {/* Coordinators */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Coordenadores</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {form.coordinators.map(c => (
+                <span key={c} className="flex items-center gap-1.5 bg-gray-100 text-gray-700 text-sm px-3 py-1 rounded-full">
+                  {c}
+                  <button onClick={() => removeCoord(c)} className="text-gray-400 hover:text-red-500">
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={newCoord}
+                onChange={e => setNewCoord(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addCoord()}
+                placeholder="Nome do coordenador..."
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                onClick={addCoord}
+                className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium px-2"
+              >
+                <Plus size={14} /> Adicionar
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-areas */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Sub-Áreas</label>
+            <div className="space-y-2 mb-3">
+              {form.subAreas.map(s => (
+                <div key={s.id} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                  <span className="flex-1 text-sm text-gray-800">{s.name}</span>
+                  <input
+                    value={s.coordinator}
+                    onChange={e => updateSubCoord(s.id, e.target.value)}
+                    placeholder="Coordenador..."
+                    className="w-36 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  />
+                  <button onClick={() => removeSub(s.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={newSub}
+                onChange={e => setNewSub(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addSub()}
+                placeholder="Nova sub-área..."
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <input
+                value={newSubCoord}
+                onChange={e => setNewSubCoord(e.target.value)}
+                placeholder="Coordenador..."
+                className="w-36 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                onClick={addSub}
+                className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium px-1"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(form)}
+            disabled={saving || !form.name.trim()}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            {saving ? 'Salvando...' : isNew ? 'Criar Ministério' : 'Salvar Alterações'}
+          </button>
+        </div>
+      </div>
     </div>
+  );
+}
+
+// ─── Tab 3 — Ministérios & Coordenadores ────────────────────────────────────
+function TabMinisterios({ onToast }: { onToast: (msg: string) => void }) {
+  const { ministries, loading, refetch } = useMinistries();
+  const [modal, setModal] = useState<{ open: boolean; initial: MinistryForm }>({
+    open: false,
+    initial: emptyForm(),
+  });
+  const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const openNew = () => setModal({ open: true, initial: emptyForm() });
+  const openEdit = (m: Ministry) =>
+    setModal({
+      open: true,
+      initial: {
+        id: m.id,
+        name: m.name,
+        color: m.color,
+        icon: m.icon,
+        coordinators: [...m.coordinators],
+        subAreas: m.subAreas.map(s => ({ ...s })),
+      },
+    });
+  const closeModal = () => setModal(p => ({ ...p, open: false }));
+
+  const toggleExpanded = (id: string) =>
+    setExpanded(p => ({ ...p, [id]: !p[id] }));
+
+  const saveMinistry = async (form: MinistryForm) => {
+    if (!form.name.trim()) return;
+    setSaving(true);
+
+    const id = form.id || form.name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+
+    // Upsert ministry
+    const { error: mErr } = await supabase.from('ministries').upsert({
+      id,
+      name: form.name.trim(),
+      color: form.color,
+      icon: form.icon,
+      coordinators: form.coordinators,
+    });
+
+    if (mErr) { onToast('Erro ao salvar ministério'); setSaving(false); return; }
+
+    // Replace sub_areas: delete existing then insert new
+    await supabase.from('sub_areas').delete().eq('ministry_id', id);
+    if (form.subAreas.length > 0) {
+      await supabase.from('sub_areas').insert(
+        form.subAreas.map(s => ({
+          id: `${id}_${s.id}`,
+          ministry_id: id,
+          name: s.name,
+          coordinator: s.coordinator || '',
+        }))
+      );
+    }
+
+    setSaving(false);
+    closeModal();
+    await refetch();
+    onToast(form.id ? 'Ministério atualizado!' : 'Ministério criado com sucesso!');
+  };
+
+  const deleteMinistry = async (id: string, name: string) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o ministério "${name}"?\n\nIsso não apagará os voluntários já cadastrados.`)) return;
+    setDeleting(id);
+    await supabase.from('sub_areas').delete().eq('ministry_id', id);
+    await supabase.from('ministries').delete().eq('id', id);
+    setDeleting(null);
+    await refetch();
+    onToast('Ministério excluído.');
+  };
+
+  if (loading) return <div className="p-8 text-gray-400 text-sm">Carregando...</div>;
+
+  return (
+    <>
+      <div className="space-y-4 max-w-2xl">
+        {/* Header row */}
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm text-gray-500">{ministries.length} ministério{ministries.length !== 1 ? 's' : ''} cadastrado{ministries.length !== 1 ? 's' : ''}</p>
+          <button
+            onClick={openNew}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Plus size={15} /> Novo Ministério
+          </button>
+        </div>
+
+        {/* Ministry cards */}
+        {ministries.map(ministry => (
+          <div key={ministry.id} className="border border-gray-200 rounded-xl overflow-hidden">
+            {/* Card header */}
+            <div className="flex items-center gap-3 px-4 py-3 bg-white">
+              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: ministry.color }} />
+              <div className="flex-1 min-w-0">
+                <span className="font-semibold text-gray-800">{ministry.name}</span>
+                <span className="ml-2 text-xs text-gray-400">
+                  {ministry.subAreas.length} sub-área{ministry.subAreas.length !== 1 ? 's' : ''} · {ministry.coordinators.length} coord.
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => toggleExpanded(ministry.id)}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                  title="Expandir"
+                >
+                  {expanded[ministry.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                <button
+                  onClick={() => openEdit(ministry)}
+                  className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
+                  title="Editar"
+                >
+                  <Pencil size={15} />
+                </button>
+                <button
+                  onClick={() => deleteMinistry(ministry.id, ministry.name)}
+                  disabled={deleting === ministry.id}
+                  className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                  title="Excluir"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+
+            {/* Expanded details */}
+            {expanded[ministry.id] && (
+              <div className="border-t border-gray-100 px-4 py-3 bg-gray-50 space-y-3">
+                {/* Coordinators */}
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Coordenadores</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ministry.coordinators.length === 0
+                      ? <span className="text-xs text-gray-400 italic">Nenhum coordenador</span>
+                      : ministry.coordinators.map(c => (
+                        <span key={c} className="bg-white border border-gray-200 text-gray-700 text-xs px-2.5 py-1 rounded-full">
+                          {c}
+                        </span>
+                      ))
+                    }
+                  </div>
+                </div>
+
+                {/* Sub-areas */}
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Sub-Áreas</p>
+                  {ministry.subAreas.length === 0
+                    ? <span className="text-xs text-gray-400 italic">Nenhuma sub-área</span>
+                    : (
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {ministry.subAreas.map(s => (
+                          <div key={s.id} className="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
+                            <p className="text-xs font-medium text-gray-800">{s.name}</p>
+                            {s.coordinator && <p className="text-xs text-gray-400">{s.coordinator}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
+                </div>
+
+                <button
+                  onClick={() => openEdit(ministry)}
+                  className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 text-xs font-medium transition-colors"
+                >
+                  <Pencil size={12} /> Editar ministério
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {modal.open && (
+        <MinistryModal
+          initial={modal.initial}
+          onSave={saveMinistry}
+          onClose={closeModal}
+          saving={saving}
+        />
+      )}
+    </>
   );
 }
 
