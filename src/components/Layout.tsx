@@ -7,6 +7,7 @@ import {
 import { ministries } from '../data/ministries';
 import { getAlertVolunteers } from '../data/volunteers';
 import { useAuth } from '../contexts/AuthContext';
+import ProfileModal from './ProfileModal';
 
 const iconMap: Record<string, React.ReactNode> = {
   Camera: <Camera size={18} />,
@@ -23,6 +24,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const navigate = useNavigate();
   const alertCount = getAlertVolunteers(7).length;
   const { profile, isAdmin, signOut } = useAuth();
@@ -196,11 +198,19 @@ export default function Layout({ children }: LayoutProps) {
                   {profile.role === 'admin' ? 'Admin' : 'Coordenador'}
                 </span>
               )}
-              <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                <span className="text-indigo-700 font-semibold text-sm">
-                  {profile?.name?.[0]?.toUpperCase() ?? 'K'}
-                </span>
-              </div>
+              <button
+                onClick={() => setProfileOpen(true)}
+                className="w-8 h-8 rounded-full overflow-hidden bg-indigo-100 flex items-center justify-center hover:ring-2 hover:ring-indigo-400 transition-all"
+                title="Editar perfil"
+              >
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-indigo-700 font-semibold text-sm">
+                    {profile?.name?.[0]?.toUpperCase() ?? 'U'}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
         </header>
@@ -210,6 +220,8 @@ export default function Layout({ children }: LayoutProps) {
           {children}
         </main>
       </div>
+
+      {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
     </div>
   );
 }
