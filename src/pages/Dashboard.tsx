@@ -1,14 +1,17 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line,
 } from 'recharts';
-import { Users, TrendingUp, Award, AlertTriangle, Phone } from 'lucide-react';
+import { Users, TrendingUp, Award, AlertTriangle, Phone, UserPlus, X, Check } from 'lucide-react';
 import { ministries } from '../data/ministries';
 import { getDaysSinceLastContact } from '../data/volunteers';
 import { STAGE_LABELS, STAGE_ORDER } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
 import { useVolunteers } from '../hooks/useVolunteers';
+import { useMinistries } from '../hooks/useMinistries';
+import { supabase } from '../lib/supabase';
 
 function KPICard({
   label, value, sub, icon, color
@@ -27,9 +30,160 @@ function KPICard({
   );
 }
 
+// ─── Add Volunteer Modal ──────────────────────────────────────────────────────
+function AddVolunteerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const { ministries: mins } = useMinistries();
+  const [form, setForm] = useState({
+    name: '', phone: '', email: '', ministryId: '', subArea: '', coordinator: '', notes: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const selectedMinistry = mins.find(m => m.id === form.ministryId);
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm(p => ({ ...p, [k]: e.target.value }));
+
+  // Auto-fill coordinator when sub-area is picked
+  const handleSubArea = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const sub = selectedMinistry?.subAreas.find(s => s.id === e.target.value);
+    setForm(p => ({ ...p, subArea: e.target.value, coordinator: sub?.coordinator || p.coordinator }));
+  };
+
+  const handleMinistry = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setForm(p => ({ ...p, ministryId: e.target.value, subArea: '', coordinator: '' }));
+  };
+
+  const save = async () => {
+    if (!form.name.trim() || !form.phone.trim() || !form.ministryId || !form.subArea) {
+      setError('Preencha os campos obrigatórios: nome, WhatsApp, ministério e sub-área.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    const id = 'v' + Date.now();
+    const now = new Date().toISOString();
+
+    const { error: err } = await supabase.from('volunteers').insert({
+      id, name: form.name.trim(), phone: form.phone.trim(),
+      email: form.email.trim() || null,
+      ministry_id: form.ministryId, sub_area: form.subArea,
+      coordinator: form.coordinator.trim(),
+      current_stage: 'cadastrado', notes: form.notes.trim(),
+      registered_at: now, last_contact_date: now,
+    });
+
+    if (err) { setError('Erro ao salvar. Tente novamente.'); setSaving(false); return; }
+
+    await supabase.from('stage_history').insert({ volunteer_id: id, stage: 'cadastrado', date: now });
+
+    setSuccess(true);
+    setTimeout(() => { onSaved(); onClose(); }, 1200);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+              <UserPlus size={16} className="text-indigo-600" />
+            </div>
+            <h2 className="font-bold text-gray-900">Adicionar Voluntário</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={20} /></button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+          {success ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-3">
+              <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
+                <Check size={28} className="text-green-600" />
+              </div>
+              <p className="font-semibold text-gray-800">Voluntário cadastrado!</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Dados Pessoais</p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome completo *</label>
+                  <input value={form.name} onChange={set('name')} placeholder="Nome do voluntário"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp *</label>
+                  <input value={form.phone} onChange={set('phone')} placeholder="(31) 9 0000-0000"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input value={form.email} onChange={set('email')} placeholder="email@opcional.com" type="email"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider pt-1">Ministério</p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ministério *</label>
+                  <select value={form.ministryId} onChange={handleMinistry}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Selecione...</option>
+                    {mins.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sub-área *</label>
+                  <select value={form.subArea} onChange={handleSubArea} disabled={!form.ministryId}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
+                    <option value="">Selecione...</option>
+                    {selectedMinistry?.subAreas.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Coordenador responsável</label>
+                  <input value={form.coordinator} onChange={set('coordinator')} placeholder="Preenchido automaticamente pela sub-área"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
+                <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Informações adicionais..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              </div>
+
+              {error && <p className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!success && (
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
+            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors">Cancelar</button>
+            <button onClick={save} disabled={saving}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">
+              {saving ? 'Salvando...' : <><UserPlus size={15} /> Cadastrar</>}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { volunteers, loading } = useVolunteers();
+  const { volunteers, loading, refetch } = useVolunteers();
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // KPI calculations
   const total = volunteers.length;
@@ -96,11 +250,27 @@ export default function Dashboard() {
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
-      {/* Title */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-1">Visão geral da jornada de voluntários — maio 2026</p>
+      {/* Title + CTA */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-500 text-sm mt-1">Visão geral da jornada de voluntários — maio 2026</p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-colors"
+        >
+          <UserPlus size={16} />
+          Adicionar Voluntário
+        </button>
       </div>
+
+      {showAddModal && (
+        <AddVolunteerModal
+          onClose={() => setShowAddModal(false)}
+          onSaved={() => refetch()}
+        />
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
