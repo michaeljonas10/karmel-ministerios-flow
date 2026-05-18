@@ -24,7 +24,7 @@ export const STAGE_LABELS: Record<JourneyStage, string> = {
   primeira_escala: 'Primeira Escala',
   estabelecido: 'Estabelecido',
   mudou_area: 'Mudou de Ministério',
-  nao_retornou: 'Não Retornou Contato',
+  nao_retornou: 'Sem Retorno',
 };
 
 // Stages that are part of the progression track

@@ -121,7 +121,7 @@ export default function FollowUp() {
     ));
     await supabase.from('volunteers').update({ current_stage: 'nao_retornou', last_contact_date: now }).eq('id', id);
     await supabase.from('stage_history').insert({ volunteer_id: id, stage: 'nao_retornou', date: now, note: 'Saiu da escala — não retornou contato' });
-    showToast('Voluntário marcado como Não Retornou Contato.');
+    showToast('Voluntário marcado como Sem Retorno.');
   }
 
   async function reactivate(id: string) {

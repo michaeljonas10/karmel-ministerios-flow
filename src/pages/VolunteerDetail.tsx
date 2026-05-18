@@ -326,7 +326,7 @@ export default function VolunteerDetail() {
                     className="flex items-center gap-2 text-sm bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-2 rounded-xl font-medium transition-colors text-xs"
                     onClick={() => setOffTrack('nao_retornou')}
                   >
-                    Não Retornou
+                    Sem Retorno
                   </button>
                 </>
               )}
