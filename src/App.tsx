@@ -39,8 +39,9 @@ function ProtectedRoute({ children, adminOnly = false }: { children: ReactNode; 
 function CoordinatorRedirect({ children }: { children: ReactNode }) {
   const { user, profile, loading } = useAuth();
 
-  if (loading || !profile) return <LoadingScreen />;
+  if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
+  if (!profile) return <LoadingScreen />;
 
   // Coordinators who hit "/" get redirected to their panel
   if (profile.role !== 'admin') return <Navigate to="/meu-ministerio" replace />;
