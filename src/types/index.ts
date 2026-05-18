@@ -23,7 +23,7 @@ export const STAGE_LABELS: Record<JourneyStage, string> = {
   treinamento: 'Treinamento',
   primeira_escala: 'Primeira Escala',
   estabelecido: 'Estabelecido',
-  mudou_area: 'Mudou de Área',
+  mudou_area: 'Mudou de Ministério',
   nao_retornou: 'Não Retornou Contato',
 };
 
