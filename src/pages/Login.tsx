@@ -33,15 +33,15 @@ export default function Login() {
 
   return (
     <div style={{
-      minHeight: '100dvh',
-      width: '100vw',
+      position: 'fixed',
+      inset: 0,
       background: 'linear-gradient(135deg, #312e81 0%, #3730a3 50%, #581c87 100%)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '1rem',
-      boxSizing: 'border-box',
+      overflowY: 'auto',
     }}>
       {/* Logo / Church header */}
       <div className="flex flex-col items-center mb-8">
