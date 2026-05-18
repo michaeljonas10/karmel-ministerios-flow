@@ -36,9 +36,9 @@ Deno.serve(async (req) => {
 
     // Leaders can only create coordinators for their own ministry
     const targetRole = isAdmin ? (role || 'coordinator') : 'coordinator'
-    const targetMinistry = isAdmin ? ministry_id : callerProfile?.ministry_id
+    const targetMinistry = isAdmin ? (ministry_id || null) : callerProfile?.ministry_id
 
-    if (!targetMinistry) {
+    if (targetRole !== 'admin' && !targetMinistry) {
       return new Response(JSON.stringify({ error: 'Ministério obrigatório' }), { status: 400, headers: corsHeaders })
     }
 
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
       email,
       name,
       role: targetRole,
-      ministry_id: targetMinistry,
+      ministry_id: targetMinistry ?? null,
       sub_areas: sub_areas ?? [],
     })
 

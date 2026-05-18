@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, Link } from 'react-router-dom'
 import { Eye, EyeOff, Lock } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 export default function Login() {
+  usePageTitle('Entrar')
   const { user, profile, loading, signIn } = useAuth()
-  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -25,17 +26,23 @@ export default function Login() {
     setSubmitting(false)
     if (err) {
       setError('Email ou senha incorretos. Tente novamente.')
-    } else {
-      // Navigate after profile loads via auth state change
-      // We use a small timeout to let the profile fetch complete
-      setTimeout(() => {
-        navigate('/', { replace: true })
-      }, 300)
     }
+    // On success: the auth state change will update user+profile,
+    // and the <Navigate> at the top of this component handles the redirect.
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-indigo-800 to-purple-900 flex flex-col items-center justify-center p-4">
+    <div style={{
+      minHeight: '100dvh',
+      width: '100vw',
+      background: 'linear-gradient(135deg, #312e81 0%, #3730a3 50%, #581c87 100%)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '1rem',
+      boxSizing: 'border-box',
+    }}>
       {/* Logo / Church header */}
       <div className="flex flex-col items-center mb-8">
         <img src="/pulse-logo.svg" alt="Pulse" className="w-16 h-16 rounded-2xl mb-4 shadow-xl" />
@@ -69,7 +76,12 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">Senha</label>
+              <Link to="/esqueci-senha" className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors">
+                Esqueci minha senha
+              </Link>
+            </div>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}

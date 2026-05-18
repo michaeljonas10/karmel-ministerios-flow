@@ -20,6 +20,7 @@ function mapRow(v: Record<string, unknown>): Volunteer {
       note: h.note,
     })),
     notes: v.notes as string,
+    howFound: v.how_found as string | undefined,
     lastContactDate: v.last_contact_date as string,
     alertDays: v.alert_days as number | undefined,
   }

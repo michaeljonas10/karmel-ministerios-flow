@@ -1,20 +1,80 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { LayoutGrid, List, Search, Users, AlertTriangle } from 'lucide-react';
-import { getMinistryById } from '../data/ministries';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { LayoutGrid, List, Search, Users } from 'lucide-react';
+import { useMinistries } from '../contexts/MinistriesContext';
 import { getDaysSinceLastContact } from '../data/volunteers';
-import { STAGE_ORDER, STAGE_LABELS } from '../types';
+import { STAGE_ORDER, STAGE_LABELS, OFF_TRACK_STAGES } from '../types';
+import type { JourneyStage, Volunteer } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
 import VolunteerCard from '../components/VolunteerCard';
 import { useVolunteers } from '../hooks/useVolunteers';
+import { supabase } from '../lib/supabase';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  useDraggable,
+  type DragEndEvent,
+  type DragStartEvent,
+  type DragOverEvent,
+} from '@dnd-kit/core';
+
+function DraggableCard({ volunteer }: { volunteer: Volunteer }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: volunteer.id });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{ opacity: isDragging ? 0.4 : 1, touchAction: 'none' }}
+    >
+      <VolunteerCard volunteer={volunteer} />
+    </div>
+  );
+}
+
+function DroppableColumn({
+  stage, children, isOver, offTrack = false,
+}: { stage: JourneyStage; children: React.ReactNode; isOver: boolean; offTrack?: boolean }) {
+  const { setNodeRef } = useDroppable({ id: stage });
+  const isAmber = stage === 'mudou_area';
+  let cls = 'rounded-b-xl min-h-24 p-2 space-y-2 transition-colors ';
+  if (offTrack) {
+    cls += isOver
+      ? isAmber ? 'bg-amber-50 ring-2 ring-amber-300 ring-inset' : 'bg-red-50 ring-2 ring-red-300 ring-inset'
+      : isAmber ? 'bg-amber-50/40' : 'bg-red-50/40';
+  } else {
+    cls += isOver ? 'bg-indigo-50 ring-2 ring-indigo-300 ring-inset' : 'bg-gray-50';
+  }
+  return (
+    <div ref={setNodeRef} className={cls}>
+      {children}
+    </div>
+  );
+}
 
 export default function MinistryPanel() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const ministry = getMinistryById(id || '');
+  const { ministries } = useMinistries();
+  const ministry = ministries.find(m => m.id === (id || ''));
+  usePageTitle(ministry?.name ?? 'Ministério');
   const [view, setView] = useState<'kanban' | 'table'>('table');
   const [search, setSearch] = useState('');
-  const { volunteers, loading } = useVolunteers();
+  const [subAreaFilter, setSubAreaFilter] = useState<string>('all');
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [overStage, setOverStage] = useState<JourneyStage | null>(null);
+  const { volunteers, loading, setVolunteers } = useVolunteers();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
+  );
 
   if (!ministry) {
     return (
@@ -33,25 +93,64 @@ export default function MinistryPanel() {
   }
 
   const allVolunteers = volunteers.filter(v => v.ministryId === ministry.id);
-  const filtered = allVolunteers.filter(v =>
-    v.name.toLowerCase().includes(search.toLowerCase()) ||
-    v.subArea.toLowerCase().includes(search.toLowerCase()) ||
-    v.coordinator.toLowerCase().includes(search.toLowerCase())
-  );
-  const alertVolunteers = allVolunteers.filter(v => {
-    const days = getDaysSinceLastContact(v);
-    return days >= 7;
-  });
+  const filtered = allVolunteers
+    .filter(v => {
+      if (subAreaFilter !== 'all' && v.subArea !== subAreaFilter) return false;
+      const q = search.toLowerCase();
+      if (q && !v.name.toLowerCase().includes(q) &&
+          !v.subArea.toLowerCase().includes(q) &&
+          !v.coordinator.toLowerCase().includes(q)) return false;
+      return true;
+    })
+    .sort((a, b) => getDaysSinceLastContact(b) - getDaysSinceLastContact(a));
 
-  // Compute sub-area volunteer counts
   const subAreaCounts = ministry.subAreas.map(sa => ({
     ...sa,
     count: allVolunteers.filter(v => v.subArea === sa.name).length,
     established: allVolunteers.filter(v => v.subArea === sa.name && v.currentStage === 'estabelecido').length,
   }));
 
+  async function moveToStage(volunteerId: string, targetStage: JourneyStage) {
+    const volunteer = volunteers.find(v => v.id === volunteerId);
+    if (!volunteer || volunteer.currentStage === targetStage) return;
+    const now = new Date().toISOString();
+    setVolunteers((prev: Volunteer[]) => prev.map(v =>
+      v.id !== volunteerId ? v : {
+        ...v,
+        currentStage: targetStage,
+        lastContactDate: now,
+        alertDays: 0,
+        stageHistory: [...v.stageHistory, { stage: targetStage, date: now }],
+      }
+    ));
+    await supabase.from('volunteers').update({ current_stage: targetStage, last_contact_date: now }).eq('id', volunteerId);
+    await supabase.from('stage_history').insert({ volunteer_id: volunteerId, stage: targetStage, date: now });
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(event.active.id as string);
+  }
+
+  const ALL_KANBAN_STAGES = [...STAGE_ORDER, ...OFF_TRACK_STAGES];
+
+  function handleDragOver(event: DragOverEvent) {
+    const stage = event.over?.id as JourneyStage | null;
+    setOverStage(ALL_KANBAN_STAGES.includes(stage as JourneyStage) ? stage : null);
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
+    setOverStage(null);
+    const { active, over } = event;
+    if (!over) return;
+    const targetStage = over.id as JourneyStage;
+    if (ALL_KANBAN_STAGES.includes(targetStage)) {
+      await moveToStage(active.id as string, targetStage);
+    }
+  }
+
   return (
-    <div className="p-4 lg:p-6 space-y-6">
+    <div className="p-4 lg:p-6 space-y-6 min-w-0 w-full">
       {/* Header */}
       <div
         className="rounded-2xl p-6 text-white"
@@ -80,77 +179,63 @@ export default function MinistryPanel() {
             <p className="text-white/70 text-xs">Estabelecidos</p>
           </div>
           <div>
-            <p className="text-xl font-bold">{allVolunteers.filter(v => v.currentStage !== 'estabelecido').length}</p>
+            <p className="text-xl font-bold">{allVolunteers.filter(v => !OFF_TRACK_STAGES.includes(v.currentStage) && v.currentStage !== 'estabelecido').length}</p>
             <p className="text-white/70 text-xs">Em Jornada</p>
           </div>
-          <div>
-            <p className="text-xl font-bold text-yellow-300">{alertVolunteers.length}</p>
-            <p className="text-white/70 text-xs">Com Alertas</p>
-          </div>
         </div>
       </div>
 
-      {/* Sub-areas grid */}
+      {/* Sub-areas grid — clickable filter */}
       <div>
-        <h2 className="text-base font-semibold text-gray-800 mb-3">Sub-Áreas</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {subAreaCounts.map(sa => (
-            <div
-              key={sa.id}
-              className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-gray-800">Sub-Áreas</h2>
+          {subAreaFilter !== 'all' && (
+            <button
+              onClick={() => setSubAreaFilter('all')}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
             >
-              <p className="text-sm font-semibold text-gray-800 leading-tight">{sa.name}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{sa.coordinator}</p>
-              <div className="flex items-center justify-between mt-3">
-                <div className="flex items-center gap-1.5">
-                  <Users size={13} className="text-gray-400" />
-                  <span className="text-lg font-bold text-gray-800">{sa.count}</span>
+              Limpar filtro ×
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {subAreaCounts.map(sa => {
+            const isActive = subAreaFilter === sa.name;
+            return (
+              <div
+                key={sa.id}
+                onClick={() => setSubAreaFilter(isActive ? 'all' : sa.name)}
+                className={`rounded-xl p-4 shadow-sm border transition-all cursor-pointer select-none
+                  ${isActive
+                    ? 'border-indigo-400 bg-indigo-50 ring-2 ring-indigo-200'
+                    : 'bg-white border-gray-100 hover:shadow-md hover:border-gray-200'
+                  }`}
+              >
+                <p className="text-sm font-semibold text-gray-800 leading-tight">{sa.name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{sa.coordinator}</p>
+                <div className="flex items-center justify-between mt-3">
+                  <div className="flex items-center gap-1.5">
+                    <Users size={13} className="text-gray-400" />
+                    <span className="text-lg font-bold text-gray-800">{sa.count}</span>
+                  </div>
+                  <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full">
+                    {sa.established} est.
+                  </span>
                 </div>
-                <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full">
-                  {sa.established} est.
-                </span>
+                <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2">
+                  <div
+                    className="h-1.5 rounded-full"
+                    style={{
+                      width: sa.count > 0 ? `${(sa.established / sa.count) * 100}%` : '0%',
+                      backgroundColor: ministry.color,
+                    }}
+                  />
+                </div>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2">
-                <div
-                  className="h-1.5 rounded-full"
-                  style={{
-                    width: sa.count > 0 ? `${(sa.established / sa.count) * 100}%` : '0%',
-                    backgroundColor: ministry.color,
-                  }}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
-
-      {/* Alerts */}
-      {alertVolunteers.length > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle size={16} className="text-orange-500" />
-            <h2 className="text-sm font-semibold text-orange-800">
-              {alertVolunteers.length} voluntário{alertVolunteers.length !== 1 ? 's' : ''} aguardando follow-up
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {alertVolunteers.map(v => {
-              const days = getDaysSinceLastContact(v);
-              return (
-                <button
-                  key={v.id}
-                  className="text-left bg-white rounded-lg px-3 py-2.5 border border-orange-200 hover:border-orange-400 transition-colors"
-                  onClick={() => navigate(`/voluntario/${v.id}`)}
-                >
-                  <p className="text-sm font-medium text-gray-800">{v.name}</p>
-                  <p className="text-xs text-gray-500">{v.subArea} · {v.coordinator}</p>
-                  <p className="text-xs font-semibold text-orange-600 mt-1">{days} dias sem contato</p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* View toggle + Search */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
@@ -249,31 +334,83 @@ export default function MinistryPanel() {
 
       {/* Kanban View */}
       {view === 'kanban' && (
-        <div className="overflow-x-auto pb-4">
-          <div className="flex gap-4 min-w-max">
-            {STAGE_ORDER.map(stage => {
-              const stageVolunteers = filtered.filter(v => v.currentStage === stage);
-              return (
-                <div key={stage} className="w-56 flex-shrink-0">
-                  <div className="bg-gray-100 rounded-t-xl px-3 py-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold text-gray-600 leading-tight">{STAGE_LABELS[stage]}</p>
-                    <span className="text-xs bg-white text-gray-600 rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                      {stageVolunteers.length}
-                    </span>
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="overflow-x-auto pb-4">
+            <div className="flex gap-4 min-w-max">
+              {/* Track columns */}
+              {STAGE_ORDER.map(stage => {
+                const stageVolunteers = filtered.filter(v => v.currentStage === stage);
+                const isOver = overStage === stage;
+                return (
+                  <div key={stage} className="w-56 flex-shrink-0">
+                    <div className="bg-gray-100 rounded-t-xl px-3 py-2 flex items-center justify-between">
+                      <p className="text-xs font-semibold text-gray-600 leading-tight">{STAGE_LABELS[stage]}</p>
+                      <span className="text-xs bg-white text-gray-600 rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                        {stageVolunteers.length}
+                      </span>
+                    </div>
+                    <DroppableColumn stage={stage} isOver={isOver}>
+                      {stageVolunteers.map(v => (
+                        <DraggableCard key={v.id} volunteer={v} />
+                      ))}
+                      {stageVolunteers.length === 0 && (
+                        <div className={`text-center py-6 text-xs ${isOver ? 'text-indigo-400' : 'text-gray-300'}`}>
+                          {isOver ? 'Soltar aqui' : 'Vazio'}
+                        </div>
+                      )}
+                    </DroppableColumn>
                   </div>
-                  <div className="bg-gray-50 rounded-b-xl min-h-24 p-2 space-y-2">
-                    {stageVolunteers.map(v => (
-                      <VolunteerCard key={v.id} volunteer={v} />
-                    ))}
-                    {stageVolunteers.length === 0 && (
-                      <div className="text-center py-6 text-gray-300 text-xs">Vazio</div>
-                    )}
+                );
+              })}
+
+              {/* Divider */}
+              <div className="flex-shrink-0 flex items-start pt-2">
+                <div className="w-px bg-gray-200 self-stretch mx-1" />
+              </div>
+
+              {/* Off-track columns */}
+              {OFF_TRACK_STAGES.map(stage => {
+                const stageVolunteers = filtered.filter(v => v.currentStage === stage);
+                const isOver = overStage === stage;
+                const isAmber = stage === 'mudou_area';
+                return (
+                  <div key={stage} className="w-56 flex-shrink-0">
+                    <div className={`rounded-t-xl px-3 py-2 flex items-center justify-between ${isAmber ? 'bg-amber-50' : 'bg-red-50'}`}>
+                      <p className={`text-xs font-semibold leading-tight ${isAmber ? 'text-amber-700' : 'text-red-600'}`}>
+                        {STAGE_LABELS[stage]}
+                      </p>
+                      <span className={`text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${isAmber ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>
+                        {stageVolunteers.length}
+                      </span>
+                    </div>
+                    <DroppableColumn stage={stage} isOver={isOver} offTrack>
+                      {stageVolunteers.map(v => (
+                        <DraggableCard key={v.id} volunteer={v} />
+                      ))}
+                      {stageVolunteers.length === 0 && (
+                        <div className={`text-center py-6 text-xs ${isOver ? (isAmber ? 'text-amber-400' : 'text-red-400') : 'text-gray-300'}`}>
+                          {isOver ? 'Soltar aqui' : 'Vazio'}
+                        </div>
+                      )}
+                    </DroppableColumn>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+          <DragOverlay>
+            {activeId ? (
+              <div className="opacity-90 rotate-2 scale-105">
+                <VolunteerCard volunteer={volunteers.find(v => v.id === activeId)!} />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       )}
     </div>
   );

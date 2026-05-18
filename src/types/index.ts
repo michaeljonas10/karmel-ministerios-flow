@@ -8,7 +8,9 @@ export type JourneyStage =
   | 'grupo_area'
   | 'treinamento'
   | 'primeira_escala'
-  | 'estabelecido';
+  | 'estabelecido'
+  | 'mudou_area'
+  | 'nao_retornou';
 
 export const STAGE_LABELS: Record<JourneyStage, string> = {
   cadastrado: 'Cadastrado',
@@ -21,8 +23,11 @@ export const STAGE_LABELS: Record<JourneyStage, string> = {
   treinamento: 'Treinamento',
   primeira_escala: 'Primeira Escala',
   estabelecido: 'Estabelecido',
+  mudou_area: 'Mudou de Área',
+  nao_retornou: 'Não Retornou Contato',
 };
 
+// Stages that are part of the progression track
 export const STAGE_ORDER: JourneyStage[] = [
   'cadastrado',
   'grupo_acolhimento',
@@ -35,6 +40,9 @@ export const STAGE_ORDER: JourneyStage[] = [
   'primeira_escala',
   'estabelecido',
 ];
+
+// Off-track statuses — not part of the progression, hide the track
+export const OFF_TRACK_STAGES: JourneyStage[] = ['mudou_area', 'nao_retornou'];
 
 export interface StageHistoryEntry {
   stage: JourneyStage;
@@ -54,6 +62,7 @@ export interface Volunteer {
   currentStage: JourneyStage;
   stageHistory: StageHistoryEntry[];
   notes: string;
+  howFound?: string;
   lastContactDate: string;
   alertDays?: number;
 }

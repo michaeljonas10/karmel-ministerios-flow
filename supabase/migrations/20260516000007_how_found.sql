@@ -1,0 +1,1 @@
+ALTER TABLE volunteers ADD COLUMN IF NOT EXISTS how_found TEXT;

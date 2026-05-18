@@ -12,6 +12,11 @@ import Configuracoes from './pages/Configuracoes';
 import CadastroVoluntario from './pages/CadastroVoluntario';
 import Login from './pages/Login';
 import MeuMinisterio from './pages/MeuMinisterio';
+import Metricas from './pages/Metricas';
+import EsqueciSenha from './pages/EsqueciSenha';
+import RedefinirSenha from './pages/RedefinirSenha';
+import Ajuda from './pages/Ajuda';
+import Suporte from './pages/Suporte';
 
 function LoadingScreen() {
   return (
@@ -34,11 +39,11 @@ function ProtectedRoute({ children, adminOnly = false }: { children: ReactNode; 
 function CoordinatorRedirect({ children }: { children: ReactNode }) {
   const { user, profile, loading } = useAuth();
 
-  if (loading) return <LoadingScreen />;
+  if (loading || !profile) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
 
   // Coordinators who hit "/" get redirected to their panel
-  if (profile?.role !== 'admin') return <Navigate to="/meu-ministerio" replace />;
+  if (profile.role !== 'admin') return <Navigate to="/meu-ministerio" replace />;
 
   return <>{children}</>;
 }
@@ -49,6 +54,8 @@ function AppRoutes() {
       {/* Public routes */}
       <Route path="/cadastro" element={<CadastroVoluntario />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+      <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
       {/* Coordinator-only route (no sidebar) */}
       <Route
@@ -99,10 +106,34 @@ function AppRoutes() {
                 }
               />
               <Route
+                path="/metricas"
+                element={
+                  <ProtectedRoute>
+                    <Metricas />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/configuracoes"
                 element={
                   <ProtectedRoute adminOnly>
                     <Configuracoes />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/ajuda"
+                element={
+                  <ProtectedRoute>
+                    <Ajuda />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/suporte"
+                element={
+                  <ProtectedRoute adminOnly>
+                    <Suporte />
                   </ProtectedRoute>
                 }
               />

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePageTitle } from '../hooks/usePageTitle';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line,
 } from 'recharts';
 import { Users, TrendingUp, Award, AlertTriangle, Phone, UserPlus, X, Check, Upload } from 'lucide-react';
 import ImportModal from '../components/ImportModal';
-import { ministries } from '../data/ministries';
 import { getDaysSinceLastContact } from '../data/volunteers';
 import { STAGE_LABELS, STAGE_ORDER } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
@@ -35,7 +35,7 @@ function KPICard({
 function AddVolunteerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const { ministries: mins } = useMinistries();
   const [form, setForm] = useState({
-    name: '', phone: '', email: '', ministryId: '', subArea: '', coordinator: '', notes: '',
+    name: '', phone: '', email: '', ministryId: '', subArea: '', coordinator: '', notes: '', howFound: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -71,6 +71,7 @@ function AddVolunteerModal({ onClose, onSaved }: { onClose: () => void; onSaved:
       email: form.email.trim() || null,
       ministry_id: form.ministryId, sub_area: form.subArea,
       coordinator: form.coordinator.trim(),
+      how_found: form.howFound || null,
       current_stage: 'cadastrado', notes: form.notes.trim(),
       registered_at: now, last_contact_date: now,
     });
@@ -84,8 +85,8 @@ function AddVolunteerModal({ onClose, onSaved }: { onClose: () => void; onSaved:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[92dvh] flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -155,10 +156,22 @@ function AddVolunteerModal({ onClose, onSaved }: { onClose: () => void; onSaved:
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-                <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Informações adicionais..."
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Como chegou até nós?</label>
+                  <select value={form.howFound} onChange={set('howFound')}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Selecione...</option>
+                    {['Integra','Culto Visão','App da Igreja','Indicação de Membro'].map(o => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
+                  <textarea value={form.notes} onChange={set('notes')} rows={1} placeholder="Notas..."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                </div>
               </div>
 
               {error && <p className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
@@ -182,8 +195,10 @@ function AddVolunteerModal({ onClose, onSaved }: { onClose: () => void; onSaved:
 }
 
 export default function Dashboard() {
+  usePageTitle('Dashboard')
   const navigate = useNavigate();
   const { volunteers, loading, refetch } = useVolunteers();
+  const { ministries } = useMinistries();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
 
@@ -191,7 +206,9 @@ export default function Dashboard() {
   const total = volunteers.length;
   const established = volunteers.filter(v => v.currentStage === 'estabelecido').length;
   const inJourney = volunteers.filter(v => v.currentStage !== 'estabelecido').length;
-  const alerts = volunteers.filter(v => v.alertDays !== undefined && v.alertDays >= 7);
+  const alerts = volunteers
+    .filter(v => getDaysSinceLastContact(v) >= 7)
+    .sort((a, b) => getDaysSinceLastContact(b) - getDaysSinceLastContact(a));
 
   // Funnel data
   const funnelData = STAGE_ORDER.map(stage => ({
@@ -251,7 +268,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-4 lg:p-6 space-y-6">
+    <div className="p-4 lg:p-6 space-y-6 min-w-0 w-full">
       {/* Title + CTA */}
       <div className="flex items-center justify-between">
         <div>

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ministries } from '../data/ministries';
+import { useMinistries } from '../contexts/MinistriesContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { ChevronRight, ChevronLeft, Check } from 'lucide-react';
 
 // ─── Phone mask ──────────────────────────────────────────────────────────────
@@ -124,6 +125,8 @@ interface FormData {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function CadastroVoluntario() {
+  usePageTitle('Cadastro de Voluntário')
+  const { ministries } = useMinistries();
   const [searchParams] = useSearchParams();
   const preMinistry = searchParams.get('ministerio') || '';
   const preCoordinator = searchParams.get('coordenador') || '';
@@ -167,11 +170,10 @@ export default function CadastroVoluntario() {
     setError('');
 
     const now = new Date().toISOString();
-    const id = 'v' + Date.now();
+    const id = crypto.randomUUID();
     const coordinator = selectedMinistry?.coordinators[0] || '';
 
-    // Find sub_area name
-    const subAreaObj = selectedMinistry?.subAreas.find(s => s.id === form.sub_area);
+    const subAreaObj = selectedMinistry?.subAreas.find(s => s.name === form.sub_area);
     const subAreaCoord = subAreaObj?.coordinator || coordinator;
 
     const volunteerRow = {
@@ -184,9 +186,9 @@ export default function CadastroVoluntario() {
       sub_area: form.sub_area,
       coordinator: subAreaCoord,
       current_stage: 'cadastrado',
+      how_found: form.how_found || null,
       notes: [
         form.notes,
-        `Como conheceu: ${form.how_found}`,
         `Frequenta: ${form.attends_church}`,
         `Experiência: ${form.has_experience}`,
         form.coordinator ? `Coordenador indicado: ${form.coordinator}` : '',
@@ -279,13 +281,13 @@ export default function CadastroVoluntario() {
                       />
                     </Field>
 
-                    <Field label="Como você conheceu a Igreja?">
+                    <Field label="Como você chegou até nós?">
                       <select value={form.how_found} onChange={set('how_found')} className={selectCls}>
                         <option value="">Selecione...</option>
-                        <option value="Indicação de amigo">Indicação de amigo</option>
-                        <option value="Redes Sociais">Redes Sociais</option>
-                        <option value="Visitei a Igreja">Visitei a Igreja</option>
-                        <option value="Outros">Outros</option>
+                        <option value="Integra">Integra</option>
+                        <option value="Culto Visão">Culto Visão</option>
+                        <option value="App da Igreja">App da Igreja</option>
+                        <option value="Indicação de Membro">Indicação de Membro</option>
                       </select>
                     </Field>
 
@@ -322,7 +324,7 @@ export default function CadastroVoluntario() {
                       >
                         <option value="">Selecione uma sub-área...</option>
                         {selectedMinistry?.subAreas.map(sa => (
-                          <option key={sa.id} value={sa.id}>{sa.name}</option>
+                          <option key={sa.id} value={sa.name}>{sa.name}</option>
                         ))}
                       </select>
                     </Field>

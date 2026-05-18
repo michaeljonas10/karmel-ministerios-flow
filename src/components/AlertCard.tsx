@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle, Phone, User } from 'lucide-react';
 import type { Volunteer } from '../types';
 import { STAGE_LABELS } from '../types';
-import { getMinistryById } from '../data/ministries';
+import { useMinistries } from '../contexts/MinistriesContext';
 import { getDaysSinceLastContact } from '../data/volunteers';
 
 interface AlertCardProps {
@@ -17,9 +17,10 @@ function getAlertSeverity(days: number) {
 
 export default function AlertCard({ volunteer }: AlertCardProps) {
   const navigate = useNavigate();
+  const { ministries } = useMinistries();
   const days = getDaysSinceLastContact(volunteer);
   const severity = getAlertSeverity(days);
-  const ministry = getMinistryById(volunteer.ministryId);
+  const ministry = ministries.find(m => m.id === volunteer.ministryId);
 
   return (
     <div

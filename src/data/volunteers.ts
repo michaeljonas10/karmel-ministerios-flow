@@ -770,12 +770,12 @@ export function getVolunteersByMinistry(ministryId: string): Volunteer[] {
   return volunteers.filter(v => v.ministryId === ministryId);
 }
 
-export function getAlertVolunteers(threshold = 7): Volunteer[] {
-  return volunteers.filter(v => v.alertDays !== undefined && v.alertDays >= threshold);
-}
-
 export function getDaysSinceLastContact(volunteer: Volunteer): number {
   const last = new Date(volunteer.lastContactDate);
-  const now = new Date('2026-05-15');
+  const now = new Date();
   return Math.floor((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+export function getAlertVolunteers(threshold = 7): Volunteer[] {
+  return volunteers.filter(v => getDaysSinceLastContact(v) >= threshold);
 }

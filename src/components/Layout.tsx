@@ -2,20 +2,28 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Camera, Music, Baby, Zap, Heart, Home,
-  Bell, Menu, X, AlertTriangle, Settings, LogOut, ShieldCheck, User
+  Bell, Menu, X, AlertTriangle, Settings, LogOut, ShieldCheck, User, TrendingUp, HelpCircle, Headphones,
+  Star, Shield, BookOpen, Globe, Users, Cross, Mic, Film, Radio, Tv, Volume2,
+  Car, Coffee, Megaphone, Flame, Waves, Gift, Monitor, Flower2, Utensils, Bus, Paintbrush, HandHeart, Scissors, Smile, Church,
 } from 'lucide-react';
 import { useMinistries } from '../contexts/MinistriesContext';
-import { getAlertVolunteers } from '../data/volunteers';
+import { getDaysSinceLastContact } from '../data/volunteers';
+import { useVolunteers } from '../hooks/useVolunteers';
 import { useAuth } from '../contexts/AuthContext';
 import ProfileModal from './ProfileModal';
 
 const iconMap: Record<string, React.ReactNode> = {
-  Camera: <Camera size={18} />,
-  Music: <Music size={18} />,
-  Baby: <Baby size={18} />,
-  Zap: <Zap size={18} />,
-  Heart: <Heart size={18} />,
-  Home: <Home size={18} />,
+  Camera: <Camera size={18} />, Music: <Music size={18} />, Baby: <Baby size={18} />,
+  Zap: <Zap size={18} />, Heart: <Heart size={18} />, Home: <Home size={18} />,
+  Star: <Star size={18} />, Shield: <Shield size={18} />, BookOpen: <BookOpen size={18} />,
+  Globe: <Globe size={18} />, Users: <Users size={18} />, Cross: <Cross size={18} />,
+  Mic: <Mic size={18} />, Film: <Film size={18} />, Radio: <Radio size={18} />,
+  Tv: <Tv size={18} />, Headphones: <Headphones size={18} />, Volume2: <Volume2 size={18} />,
+  Car: <Car size={18} />, Coffee: <Coffee size={18} />, Megaphone: <Megaphone size={18} />,
+  Flame: <Flame size={18} />, Waves: <Waves size={18} />, Gift: <Gift size={18} />,
+  Monitor: <Monitor size={18} />, Flower2: <Flower2 size={18} />, Utensils: <Utensils size={18} />,
+  Bus: <Bus size={18} />, Paintbrush: <Paintbrush size={18} />, HandHeart: <HandHeart size={18} />,
+  Scissors: <Scissors size={18} />, Smile: <Smile size={18} />, Church: <Church size={18} />,
 };
 
 interface LayoutProps {
@@ -59,13 +67,14 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const navigate = useNavigate();
-  const alertCount = getAlertVolunteers(7).length;
   const { profile, isAdmin, isLeader, signOut } = useAuth();
   const { ministries } = useMinistries();
+  const { volunteers: allVolunteers } = useVolunteers();
+  const alertCount = allVolunteers.filter(v => getDaysSinceLastContact(v) >= 7).length;
 
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--body-bg)' }}>
+    <div className="flex overflow-hidden" style={{ height: '100dvh', backgroundColor: 'var(--body-bg)' }}>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -124,11 +133,14 @@ export default function Layout({ children }: LayoutProps) {
                 <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Gestão</p>
               </div>
               <SideLink to="/follow-up" icon={<AlertTriangle size={18} />} label="Follow-up" badge={alertCount > 0 ? alertCount : undefined} onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/metricas" icon={<TrendingUp size={18} />} label="Métricas" onClose={() => setSidebarOpen(false)} />
 
               <div className="pt-4 pb-1">
                 <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Sistema</p>
               </div>
               <SideLink to="/configuracoes" icon={<Settings size={18} />} label="Configurações" onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/suporte" icon={<Headphones size={18} />} label="Suporte" onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/ajuda" icon={<HelpCircle size={18} />} label="Ajuda & Suporte" onClose={() => setSidebarOpen(false)} />
             </>
           )}
 
@@ -140,12 +152,18 @@ export default function Layout({ children }: LayoutProps) {
                 <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Gestão</p>
               </div>
               <SideLink to="/follow-up" icon={<AlertTriangle size={18} />} label="Follow-up" badge={alertCount > 0 ? alertCount : undefined} onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/metricas" icon={<TrendingUp size={18} />} label="Métricas" onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/ajuda" icon={<HelpCircle size={18} />} label="Ajuda & Suporte" onClose={() => setSidebarOpen(false)} />
             </>
           )}
 
           {/* ── Coordinator: their sub-areas only ── */}
           {!isAdmin && !isLeader && profile?.ministry_id && (
-            <SideLink to="/meu-ministerio" icon={<User size={18} />} label="Minha Sub-área" onClose={() => setSidebarOpen(false)} />
+            <>
+              <SideLink to="/meu-ministerio" icon={<User size={18} />} label="Minha Sub-área" onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/metricas" icon={<TrendingUp size={18} />} label="Métricas" onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/ajuda" icon={<HelpCircle size={18} />} label="Ajuda & Suporte" onClose={() => setSidebarOpen(false)} />
+            </>
           )}
         </nav>
 
@@ -240,7 +258,7 @@ export default function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
           {children}
         </main>
       </div>

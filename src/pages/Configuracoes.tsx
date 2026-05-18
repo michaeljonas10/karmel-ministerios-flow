@@ -3,8 +3,14 @@ import { supabase } from '../lib/supabase';
 import { useMinistries } from '../hooks/useMinistries';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, THEMES } from '../contexts/ThemeContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 import type { ThemeId } from '../contexts/ThemeContext';
-import { Settings, Church, Link2, Users, Copy, Check, Plus, X, Pencil, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, UserPlus, ShieldCheck, User, Palette } from 'lucide-react';
+import {
+  Settings, Church, Link2, Users, Copy, Check, Plus, X, Pencil, Trash2, ChevronDown, ChevronUp,
+  Eye, EyeOff, UserPlus, ShieldCheck, User, Palette,
+  Camera, Music, Baby, Zap, Heart, Home, Star, Shield, BookOpen, Globe, Cross, Mic, Film, Radio, Tv, Headphones, Volume2,
+  Car, Coffee, Megaphone, Flame, Waves, Gift, Monitor, Flower2, Utensils, Bus, Paintbrush, HandHeart, Scissors, Smile,
+} from 'lucide-react';
 import type { Ministry, SubArea } from '../types';
 import type { UserProfile } from '../contexts/AuthContext';
 
@@ -239,7 +245,24 @@ const ICON_OPTIONS = [
   'Camera','Music','Baby','Zap','Heart','Home',
   'Star','Shield','BookOpen','Globe','Users','Cross',
   'Mic','Film','Radio','Tv','Headphones','Volume2',
+  'Car','Coffee','Megaphone','Flame','Waves','Gift',
+  'Monitor','Flower2','Utensils','Bus','Paintbrush','HandHeart',
+  'Scissors','Smile','Church',
 ];
+
+const ICON_MAP: Record<string, React.ReactNode> = {
+  Camera: <Camera size={18} />, Music: <Music size={18} />, Baby: <Baby size={18} />,
+  Zap: <Zap size={18} />, Heart: <Heart size={18} />, Home: <Home size={18} />,
+  Star: <Star size={18} />, Shield: <Shield size={18} />, BookOpen: <BookOpen size={18} />,
+  Globe: <Globe size={18} />, Users: <Users size={18} />, Cross: <Cross size={18} />,
+  Mic: <Mic size={18} />, Film: <Film size={18} />, Radio: <Radio size={18} />,
+  Tv: <Tv size={18} />, Headphones: <Headphones size={18} />, Volume2: <Volume2 size={18} />,
+  Car: <Car size={18} />, Coffee: <Coffee size={18} />, Megaphone: <Megaphone size={18} />,
+  Flame: <Flame size={18} />, Waves: <Waves size={18} />, Gift: <Gift size={18} />,
+  Monitor: <Monitor size={18} />, Flower2: <Flower2 size={18} />, Utensils: <Utensils size={18} />,
+  Bus: <Bus size={18} />, Paintbrush: <Paintbrush size={18} />, HandHeart: <HandHeart size={18} />,
+  Scissors: <Scissors size={18} />, Smile: <Smile size={18} />, Church: <Church size={18} />,
+};
 
 interface MinistryForm {
   id: string;
@@ -309,10 +332,10 @@ function MinistryModal({
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4"
       onClick={e => e.target === overlayRef.current && onClose()}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[92dvh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="font-bold text-gray-900 text-lg">
@@ -355,18 +378,19 @@ function MinistryModal({
           {/* Icon */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Ícone</label>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5">
               {ICON_OPTIONS.map(ic => (
                 <button
                   key={ic}
                   onClick={() => set('icon')(ic)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  title={ic}
+                  className={`flex items-center justify-center w-10 h-10 rounded-xl border-2 transition-all ${
                     form.icon === ic
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'
+                      ? 'border-indigo-600 bg-indigo-600 text-white'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-indigo-400 hover:text-indigo-600'
                   }`}
                 >
-                  {ic}
+                  {ICON_MAP[ic]}
                 </button>
               ))}
             </div>
@@ -662,6 +686,8 @@ function TabMinisterios({ onToast }: { onToast: (msg: string) => void }) {
 }
 
 // ─── Tab 4 — Usuários ────────────────────────────────────────────────────────
+const SUPER_ADMIN_EMAIL = 'michael.j.a.souza@gmail.com';
+
 function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
   const { ministries } = useMinistries();
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -692,8 +718,12 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
   };
 
   const handleCreate = async () => {
-    if (!form.name.trim() || !form.email.trim() || !form.password.trim() || !form.ministry_id) {
+    if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
       setFormError('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    if (form.role !== 'admin' && !form.ministry_id) {
+      setFormError('Selecione o ministério.');
       return;
     }
     setSaving(true);
@@ -721,11 +751,13 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
     } else {
       setModalOpen(false);
       await fetchUsers();
-      onToast(`${form.role === 'ministry_leader' ? 'Líder' : 'Coordenador'} "${form.name}" criado com sucesso!`);
+      onToast(`${form.role === 'admin' ? 'Admin' : form.role === 'ministry_leader' ? 'Líder' : 'Coordenador'} "${form.name}" criado com sucesso!`);
     }
   };
 
   const handleDelete = async (id: string) => {
+    const target = users.find(u => u.id === id);
+    if (!target || target.email === SUPER_ADMIN_EMAIL || target.role !== 'coordinator') return;
     if (!window.confirm('Tem certeza que deseja remover este usuário?')) return;
     setDeleteId(id);
     // Delete from user_profiles (auth user remains but loses app access without profile)
@@ -756,6 +788,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-xs text-gray-400 uppercase tracking-wider">
@@ -767,12 +800,16 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {users.map(u => (
+              {users.map(u => {
+                const isSuperAdmin = u.email === SUPER_ADMIN_EMAIL;
+                return (
                 <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center">
-                        {u.role === 'admin'
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isSuperAdmin ? 'bg-violet-100' : u.role === 'admin' ? 'bg-indigo-100' : 'bg-purple-100'}`}>
+                        {isSuperAdmin
+                          ? <ShieldCheck size={14} className="text-violet-600" />
+                          : u.role === 'admin'
                           ? <ShieldCheck size={14} className="text-indigo-600" />
                           : <User size={14} className="text-purple-600" />
                         }
@@ -784,7 +821,9 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                     <span className="text-sm text-gray-600">{u.email}</span>
                   </td>
                   <td className="px-5 py-3.5">
-                    {u.role === 'admin'
+                    {isSuperAdmin
+                      ? <span className="inline-flex items-center gap-1 bg-violet-100 text-violet-700 text-xs font-semibold px-2.5 py-1 rounded-full"><ShieldCheck size={11} /> Super Admin</span>
+                      : u.role === 'admin'
                       ? <span className="inline-block bg-indigo-100 text-indigo-700 text-xs font-semibold px-2.5 py-1 rounded-full">Admin</span>
                       : u.role === 'ministry_leader'
                       ? <span className="inline-block bg-amber-100 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full">Líder</span>
@@ -795,7 +834,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                     <span className="text-sm text-gray-600">{getMinistryName(u.ministry_id)}</span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    {u.role !== 'admin' && (
+                    {!isSuperAdmin && u.role === 'coordinator' && (
                       <button
                         onClick={() => handleDelete(u.id)}
                         disabled={deleteId === u.id}
@@ -807,7 +846,8 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {users.length === 0 && (
                 <tr>
                   <td colSpan={5} className="text-center py-10 text-gray-400 text-sm">Nenhum usuário cadastrado</td>
@@ -815,23 +855,24 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 
       {/* Modal */}
       {modalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4"
           onClick={e => { if (e.target === e.currentTarget) setModalOpen(false); }}
         >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[92dvh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h2 className="font-bold text-gray-900 text-lg">Novo Usuário</h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
             </div>
-            <div className="px-6 py-5 space-y-4">
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
                 <input
@@ -872,21 +913,28 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Perfil *</label>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {[
                     { value: 'coordinator', label: 'Coordenador' },
-                    { value: 'ministry_leader', label: 'Líder de Ministério' },
+                    { value: 'ministry_leader', label: 'Líder' },
+                    { value: 'admin', label: 'Administrador' },
                   ].map(opt => (
-                    <label key={opt.value} className="flex-1 flex items-center gap-2 cursor-pointer border rounded-lg px-3 py-2 text-sm transition-colors"
+                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer border rounded-lg px-3 py-2 text-sm transition-colors"
                       style={form.role === opt.value ? { borderColor: 'var(--accent)', backgroundColor: 'var(--accent-light)', color: 'var(--accent-text)' } : { borderColor: '#d1d5db', color: '#374151' }}>
                       <input type="radio" name="role" value={opt.value} checked={form.role === opt.value}
-                        onChange={e => setForm(p => ({ ...p, role: e.target.value, sub_areas: [] }))}
+                        onChange={e => setForm(p => ({ ...p, role: e.target.value, ministry_id: e.target.value === 'admin' ? '' : p.ministry_id, sub_areas: [] }))}
                         className="hidden" />
                       {opt.label}
                     </label>
                   ))}
                 </div>
+                {form.role === 'admin' && (
+                  <p className="mt-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Administradores têm acesso total ao sistema.
+                  </p>
+                )}
               </div>
+              {form.role !== 'admin' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ministério *</label>
                 <select
@@ -900,6 +948,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                   ))}
                 </select>
               </div>
+              )}
               {form.role === 'coordinator' && selectedMinistry && selectedMinistry.subAreas.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Sub-áreas que irá coordenar</label>
@@ -919,7 +968,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 flex-shrink-0">
               <button
                 onClick={() => setModalOpen(false)}
                 className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
@@ -931,7 +980,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                 disabled={saving}
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
               >
-                {saving ? 'Criando...' : form.role === 'ministry_leader' ? 'Criar Líder' : 'Criar Coordenador'}
+                {saving ? 'Criando...' : form.role === 'admin' ? 'Criar Admin' : form.role === 'ministry_leader' ? 'Criar Líder' : 'Criar Coordenador'}
               </button>
             </div>
           </div>
@@ -1015,6 +1064,7 @@ const ALL_TABS: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boo
 ];
 
 export default function Configuracoes() {
+  usePageTitle('Configurações')
   const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('igreja');
   const [toast, setToast] = useState('');

@@ -15,7 +15,7 @@ export default function VolunteerCard({ volunteer }: VolunteerCardProps) {
 
   return (
     <div
-      className={`bg-white rounded-lg p-3 shadow-sm border cursor-pointer hover:shadow-md transition-shadow
+      className={`bg-white rounded-lg p-3 shadow-sm border hover:shadow-md transition-shadow
         ${isAlert ? 'border-orange-200' : 'border-gray-100'}
       `}
       onClick={() => navigate(`/voluntario/${volunteer.id}`)}
