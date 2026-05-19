@@ -429,11 +429,22 @@ export default function MeuMinisterio() {
   // Scope volunteers by role
   const ministryVolunteers = volunteers.filter(v => v.ministryId === profile?.ministry_id)
   const myVolunteers = isCoordinator
-    ? volunteers.filter(v => mySubAreaNames.includes(v.subArea))
+    // Coordinator sees: their assigned sub-areas + volunteers with no area yet (pending assignment)
+    ? volunteers.filter(v =>
+        v.ministryId === profile?.ministry_id &&
+        (v.subArea === '' || mySubAreaNames.includes(v.subArea))
+      )
     : ministryVolunteers
 
-  // Sub-area filter applies to both leaders (all ministry sub-areas) and multi-sub-area coordinators
-  const displayedVolunteers = subAreaFilter !== 'all'
+  // Unassigned = same ministry, no sub-area yet
+  const unassignedVolunteers = isCoordinator
+    ? myVolunteers.filter(v => v.subArea === '')
+    : []
+
+  // Sub-area filter: 'all' shows everything, 'unassigned' shows pending, else filters by name
+  const displayedVolunteers = subAreaFilter === 'unassigned'
+    ? unassignedVolunteers
+    : subAreaFilter !== 'all'
     ? myVolunteers.filter(v => v.subArea === subAreaFilter)
     : myVolunteers
 
@@ -470,7 +481,7 @@ export default function MeuMinisterio() {
   const panelTitle = isLeader
     ? (ministry ? `Ministério ${ministry.name}` : 'Meu Ministério')
     : isCoordinator && mySubAreas.length > 0
-      ? `Sub-área${mySubAreas.length > 1 ? 's' : ''}: ${mySubAreas.map(sa => sa.name).join(', ')}`
+      ? `${mySubAreas.map(sa => sa.name).join(' · ')}${unassignedVolunteers.length > 0 ? ` · ${unassignedVolunteers.length} sem área` : ''}`
       : 'Meu Painel'
 
   return (
@@ -543,16 +554,25 @@ export default function MeuMinisterio() {
               <div className="space-y-6">
                 <KPIs volunteers={myVolunteers} />
 
-                {/* Sub-area filter: all sub-areas for leaders; multiple sub-areas for coordinators */}
-                {((isLeader && ministry && ministry.subAreas.length > 0) || (isCoordinator && mySubAreas.length > 1)) && (
+                {/* Sub-area filter tabs */}
+                {((isLeader && ministry && ministry.subAreas.length > 0) || isCoordinator) && (
                   <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => setSubAreaFilter('all')}
                       className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${subAreaFilter === 'all' ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                       style={subAreaFilter === 'all' ? { backgroundColor: 'var(--accent)' } : {}}
                     >
-                      Todas
+                      Todos ({myVolunteers.length})
                     </button>
+                    {isCoordinator && unassignedVolunteers.length > 0 && (
+                      <button
+                        onClick={() => setSubAreaFilter('unassigned')}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${subAreaFilter === 'unassigned' ? 'text-white' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}
+                        style={subAreaFilter === 'unassigned' ? { backgroundColor: '#f59e0b' } : {}}
+                      >
+                        Sem área ({unassignedVolunteers.length})
+                      </button>
+                    )}
                     {(isLeader ? (ministry?.subAreas ?? []) : mySubAreas).map(sa => (
                       <button
                         key={sa.id}
@@ -560,7 +580,7 @@ export default function MeuMinisterio() {
                         className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${subAreaFilter === sa.name ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                         style={subAreaFilter === sa.name ? { backgroundColor: 'var(--accent)' } : {}}
                       >
-                        {sa.name}
+                        {sa.name} ({myVolunteers.filter(v => v.subArea === sa.name).length})
                       </button>
                     ))}
                   </div>
