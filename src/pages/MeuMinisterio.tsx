@@ -418,14 +418,22 @@ export default function MeuMinisterio() {
 
   const ministry = ministries.find(m => m.id === profile?.ministry_id)
 
+  // Resolve coordinator's assigned sub-areas (IDs → objects) using ministry data.
+  // volunteers.sub_area stores the sub-area *name* (set at registration), while
+  // user_profiles.sub_areas stores sub-area *IDs* (slugs) — so we map through names.
+  const mySubAreas = isCoordinator
+    ? (ministry?.subAreas ?? []).filter(sa => (profile?.sub_areas ?? []).includes(sa.id))
+    : []
+  const mySubAreaNames = mySubAreas.map(sa => sa.name)
+
   // Scope volunteers by role
   const ministryVolunteers = volunteers.filter(v => v.ministryId === profile?.ministry_id)
   const myVolunteers = isCoordinator
-    ? volunteers.filter(v => (profile?.sub_areas ?? []).includes(v.subArea))
+    ? volunteers.filter(v => mySubAreaNames.includes(v.subArea))
     : ministryVolunteers
 
-  // Leader: filter by selected sub-area
-  const displayedVolunteers = isLeader && subAreaFilter !== 'all'
+  // Sub-area filter applies to both leaders (all ministry sub-areas) and multi-sub-area coordinators
+  const displayedVolunteers = subAreaFilter !== 'all'
     ? myVolunteers.filter(v => v.subArea === subAreaFilter)
     : myVolunteers
 
@@ -461,8 +469,8 @@ export default function MeuMinisterio() {
 
   const panelTitle = isLeader
     ? (ministry ? `Ministério ${ministry.name}` : 'Meu Ministério')
-    : isCoordinator && (profile?.sub_areas?.length ?? 0) > 0
-      ? `Sub-área${(profile?.sub_areas?.length ?? 0) > 1 ? 's' : ''}: ${(profile?.sub_areas ?? []).join(', ')}`
+    : isCoordinator && mySubAreas.length > 0
+      ? `Sub-área${mySubAreas.length > 1 ? 's' : ''}: ${mySubAreas.map(sa => sa.name).join(', ')}`
       : 'Meu Painel'
 
   return (
@@ -535,22 +543,22 @@ export default function MeuMinisterio() {
               <div className="space-y-6">
                 <KPIs volunteers={myVolunteers} />
 
-                {/* Sub-area filter (leader only) */}
-                {isLeader && ministry && ministry.subAreas.length > 0 && (
+                {/* Sub-area filter: all sub-areas for leaders; multiple sub-areas for coordinators */}
+                {((isLeader && ministry && ministry.subAreas.length > 0) || (isCoordinator && mySubAreas.length > 1)) && (
                   <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => setSubAreaFilter('all')}
                       className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${subAreaFilter === 'all' ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                       style={subAreaFilter === 'all' ? { backgroundColor: 'var(--accent)' } : {}}
                     >
-                      Todas as Sub-áreas
+                      Todas
                     </button>
-                    {ministry.subAreas.map(sa => (
+                    {(isLeader ? (ministry?.subAreas ?? []) : mySubAreas).map(sa => (
                       <button
                         key={sa.id}
-                        onClick={() => setSubAreaFilter(sa.id)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${subAreaFilter === sa.id ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                        style={subAreaFilter === sa.id ? { backgroundColor: 'var(--accent)' } : {}}
+                        onClick={() => setSubAreaFilter(sa.name)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${subAreaFilter === sa.name ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        style={subAreaFilter === sa.name ? { backgroundColor: 'var(--accent)' } : {}}
                       >
                         {sa.name}
                       </button>
@@ -599,7 +607,7 @@ export default function MeuMinisterio() {
                           )}
                         </div>
                         <span className="text-xs text-gray-400">
-                          {ministryVolunteers.filter(v => v.subArea === sa.id).length} voluntários
+                          {ministryVolunteers.filter(v => v.subArea === sa.name).length} voluntários
                         </span>
                       </div>
                     ))}
