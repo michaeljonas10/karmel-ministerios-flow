@@ -27,24 +27,23 @@ function LoadingScreen() {
 }
 
 function ProtectedRoute({ children, adminOnly = false }: { children: ReactNode; adminOnly?: boolean }) {
-  const { user, profile, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
 
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
-  if (adminOnly && profile?.role !== 'admin') return <Navigate to="/meu-ministerio" replace />;
+  if (adminOnly && !isAdmin) return <Navigate to="/meu-ministerio" replace />;
 
   return <>{children}</>;
 }
 
 function CoordinatorRedirect({ children }: { children: ReactNode }) {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, isAdmin } = useAuth();
 
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
   if (!profile) return <LoadingScreen />;
 
-  // Coordinators who hit "/" get redirected to their panel
-  if (profile.role !== 'admin') return <Navigate to="/meu-ministerio" replace />;
+  if (!isAdmin) return <Navigate to="/meu-ministerio" replace />;
 
   return <>{children}</>;
 }
