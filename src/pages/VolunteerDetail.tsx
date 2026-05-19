@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import {
   ArrowLeft, Mail, Calendar, User, ChevronRight, ChevronLeft,
-  CheckCircle, MessageSquare, Clock, Pencil, X, Save
+  CheckCircle, MessageSquare, Clock, Pencil, X, Save, Copy, Cake, PhoneCall,
 } from 'lucide-react';
 import WaButton from '../components/WaButton';
 import { getDaysSinceLastContact } from '../data/volunteers';
@@ -13,6 +13,7 @@ import type { Volunteer, JourneyStage } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
 import StageProgressBar from '../components/StageProgressBar';
 import { supabase } from '../lib/supabase';
+import { buildTemplate } from '../data/waTemplates';
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -30,8 +31,9 @@ export default function VolunteerDetail() {
   const [noteInput, setNoteInput] = useState('');
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
-  const [editField, setEditField] = useState<'phone' | 'email' | 'name' | 'subArea' | null>(null);
+  const [editField, setEditField] = useState<'phone' | 'email' | 'name' | 'subArea' | 'birthday' | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [templateCopied, setTemplateCopied] = useState(false);
 
   useEffect(() => {
     async function fetchVolunteer() {
@@ -61,6 +63,8 @@ export default function VolunteerDetail() {
           notes: data.notes,
           lastContactDate: data.last_contact_date,
           alertDays: data.alert_days,
+          birthday: data.birthday ?? undefined,
+          contactAttempts: data.contact_attempts ?? 0,
         });
       }
       setLoading(false);
@@ -105,9 +109,25 @@ export default function VolunteerDetail() {
   async function markContacted() {
     if (!volunteer) return;
     const now = new Date().toISOString();
-    setVolunteer(v => v ? { ...v, lastContactDate: now, alertDays: 0 } : v);
-    await supabase.from('volunteers').update({ last_contact_date: now }).eq('id', volunteer.id);
+    const newAttempts = (volunteer.contactAttempts ?? 0) + 1;
+    setVolunteer(v => v ? { ...v, lastContactDate: now, alertDays: 0, contactAttempts: newAttempts } : v);
+    await supabase.from('volunteers').update({ last_contact_date: now, contact_attempts: newAttempts }).eq('id', volunteer.id);
     showToast('Contato registrado!');
+  }
+
+  async function resetAttempts() {
+    if (!volunteer) return;
+    setVolunteer(v => v ? { ...v, contactAttempts: 0 } : v);
+    await supabase.from('volunteers').update({ contact_attempts: 0 }).eq('id', volunteer.id);
+  }
+
+  function copyTemplate() {
+    if (!volunteer || !ministry) return;
+    const msg = buildTemplate(volunteer.currentStage, volunteer, ministry.name);
+    navigator.clipboard.writeText(msg).then(() => {
+      setTemplateCopied(true);
+      setTimeout(() => setTemplateCopied(false), 2000);
+    });
   }
 
   async function advanceStage() {
@@ -164,16 +184,16 @@ export default function VolunteerDetail() {
     showToast(`Reativado em: ${STAGE_LABELS[lastTrackStage]}`);
   }
 
-  function startEdit(field: 'phone' | 'email' | 'name' | 'subArea') {
+  function startEdit(field: 'phone' | 'email' | 'name' | 'subArea' | 'birthday') {
     setEditField(field);
-    setEditValue(volunteer?.[field] ?? '');
+    setEditValue(field === 'birthday' ? (volunteer?.birthday ?? '') : (volunteer?.[field as 'phone' | 'email' | 'name' | 'subArea'] ?? ''));
   }
 
   async function saveEdit() {
     if (!volunteer || !editField) return;
     const trimmed = editValue.trim();
     const dbField = editField === 'subArea' ? 'sub_area' : editField;
-    const updates: Record<string, string> = { [dbField]: trimmed };
+    const updates: Record<string, string | null> = { [dbField]: trimmed || null };
 
     if (editField === 'subArea') {
       const newCoordinator = ministry?.subAreas.find(sa => sa.name === trimmed)?.coordinator;
@@ -183,6 +203,8 @@ export default function VolunteerDetail() {
       } else {
         setVolunteer(v => v ? { ...v, [editField]: trimmed } : v);
       }
+    } else if (editField === 'birthday') {
+      setVolunteer(v => v ? { ...v, birthday: trimmed || undefined } : v);
     } else {
       setVolunteer(v => v ? { ...v, [editField]: trimmed } : v);
     }
@@ -337,6 +359,14 @@ export default function VolunteerDetail() {
                 <MessageSquare size={14} />
                 Nota
               </button>
+              <button
+                className={`flex items-center gap-2 text-sm px-4 py-2 rounded-xl font-medium transition-colors ${templateCopied ? 'bg-green-100 text-green-700' : 'bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200'}`}
+                onClick={copyTemplate}
+                title="Copiar mensagem WhatsApp para esta etapa"
+              >
+                <Copy size={14} />
+                {templateCopied ? 'Copiado!' : 'Template WA'}
+              </button>
             </div>
           </div>
 
@@ -362,7 +392,7 @@ export default function VolunteerDetail() {
           )}
 
           {/* Contact info grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5 pt-5 border-t border-gray-100">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mt-5 pt-5 border-t border-gray-100">
             {/* Phone — editable */}
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Telefone</p>
@@ -429,6 +459,43 @@ export default function VolunteerDetail() {
               <div className="flex items-center gap-1.5">
                 <Calendar size={13} className="text-gray-400" />
                 <span className="text-sm text-gray-700">{formatDate(volunteer.registeredAt)}</span>
+              </div>
+            </div>
+            {/* Birthday */}
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Aniversário</p>
+              {editField === 'birthday' ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    autoFocus type="date" value={editValue}
+                    onChange={e => setEditValue(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditField(null); }}
+                    className="flex-1 border border-indigo-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 min-w-0"
+                  />
+                  <button onClick={saveEdit} className="text-green-600 p-1"><Save size={13} /></button>
+                  <button onClick={() => setEditField(null)} className="text-gray-400 p-1"><X size={13} /></button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <Cake size={13} className="text-gray-400" />
+                  <span className="text-sm text-gray-700">
+                    {volunteer.birthday
+                      ? new Date(volunteer.birthday + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+                      : <span className="text-gray-400 italic text-xs">não informado</span>}
+                  </span>
+                  <button onClick={() => startEdit('birthday')} className="text-gray-400 hover:text-indigo-600 p-0.5"><Pencil size={11} /></button>
+                </div>
+              )}
+            </div>
+            {/* Contact attempts */}
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Tentativas</p>
+              <div className="flex items-center gap-2">
+                <PhoneCall size={13} className="text-gray-400" />
+                <span className="text-sm font-semibold text-gray-700">{volunteer.contactAttempts ?? 0}</span>
+                {(volunteer.contactAttempts ?? 0) > 0 && (
+                  <button onClick={resetAttempts} className="text-xs text-gray-400 hover:text-red-500 transition-colors" title="Zerar tentativas">↺</button>
+                )}
               </div>
             </div>
           </div>

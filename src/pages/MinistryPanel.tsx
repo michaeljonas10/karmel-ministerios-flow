@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { LayoutGrid, List, Search, Users } from 'lucide-react';
+import { LayoutGrid, List, Search, Users, CheckSquare, Square, ChevronRight, Download, X } from 'lucide-react';
 import { useMinistries } from '../contexts/MinistriesContext';
 import { getDaysSinceLastContact } from '../data/volunteers';
 import { STAGE_ORDER, STAGE_LABELS, OFF_TRACK_STAGES } from '../types';
@@ -67,9 +67,16 @@ export default function MinistryPanel() {
   const [view, setView] = useState<'kanban' | 'table'>('table');
   const [search, setSearch] = useState('');
   const [subAreaFilter, setSubAreaFilter] = useState<string>('all');
+  const [periodFilter, setPeriodFilter] = useState<30 | 60 | 90 | 0>(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<JourneyStage | null>(null);
   const { volunteers, loading, setVolunteers } = useVolunteers();
+
+  // Load capacities from localStorage (capacity per sub-area, keyed by subAreaName)
+  const capacities: Record<string, number> = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('subAreaCapacities') || '{}'); } catch { return {}; }
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -100,9 +107,47 @@ export default function MinistryPanel() {
       if (q && !v.name.toLowerCase().includes(q) &&
           !v.subArea.toLowerCase().includes(q) &&
           !v.coordinator.toLowerCase().includes(q)) return false;
+      if (periodFilter > 0) {
+        const days = (Date.now() - new Date(v.registeredAt).getTime()) / 86400000;
+        if (days > periodFilter) return false;
+      }
       return true;
     })
     .sort((a, b) => getDaysSinceLastContact(b) - getDaysSinceLastContact(a));
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+  function toggleSelectAll() {
+    setSelected(prev => prev.size === filtered.length ? new Set() : new Set(filtered.map(v => v.id)));
+  }
+  async function bulkAdvance() {
+    for (const id of selected) {
+      const v = volunteers.find(x => x.id === id);
+      if (!v || STAGE_ORDER.indexOf(v.currentStage) >= STAGE_ORDER.length - 1) continue;
+      const next = STAGE_ORDER[STAGE_ORDER.indexOf(v.currentStage) + 1];
+      const now = new Date().toISOString();
+      setVolunteers((prev: Volunteer[]) => prev.map(x => x.id !== id ? x : { ...x, currentStage: next, lastContactDate: now }));
+      await supabase.from('volunteers').update({ current_stage: next, last_contact_date: now }).eq('id', id);
+      await supabase.from('stage_history').insert({ volunteer_id: id, stage: next, date: now, note: 'Avanço em lote' });
+    }
+    setSelected(new Set());
+  }
+  function exportCSV() {
+    const rows = [
+      ['Nome', 'Área', 'Coordenador', 'Etapa', 'Telefone', 'Último Contato'],
+      ...filtered.map(v => [v.name, v.subArea, v.coordinator, v.currentStage, v.phone, v.lastContactDate]),
+    ];
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `${ministry?.name ?? 'ministerio'}-voluntarios.csv`;
+    a.click();
+  }
 
   const subAreaCounts = ministry.subAreas.map(sa => ({
     ...sa,
@@ -217,6 +262,11 @@ export default function MinistryPanel() {
                   <div className="flex items-center gap-1.5">
                     <Users size={13} className="text-gray-400" />
                     <span className="text-lg font-bold text-gray-800">{sa.count}</span>
+                    {capacities[sa.name] > 0 && (
+                      <span className={`text-xs font-medium ${sa.count >= capacities[sa.name] ? 'text-red-500' : 'text-gray-400'}`}>
+                        / {capacities[sa.name]}
+                      </span>
+                    )}
                   </div>
                   <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full">
                     {sa.established} est.
@@ -224,10 +274,12 @@ export default function MinistryPanel() {
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2">
                   <div
-                    className="h-1.5 rounded-full"
+                    className="h-1.5 rounded-full transition-all"
                     style={{
-                      width: sa.count > 0 ? `${(sa.established / sa.count) * 100}%` : '0%',
-                      backgroundColor: ministry.color,
+                      width: capacities[sa.name] > 0
+                        ? `${Math.min((sa.count / capacities[sa.name]) * 100, 100)}%`
+                        : sa.count > 0 ? `${(sa.established / sa.count) * 100}%` : '0%',
+                      backgroundColor: capacities[sa.name] > 0 && sa.count >= capacities[sa.name] ? '#ef4444' : ministry.color,
                     }}
                   />
                 </div>
@@ -237,38 +289,75 @@ export default function MinistryPanel() {
         </div>
       </div>
 
-      {/* View toggle + Search */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar voluntário, área, coordenador..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
-          />
+      {/* View toggle + Search + Filters */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+          <div className="relative flex-1 max-w-md">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar voluntário, área, coordenador..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Period filter */}
+            <select
+              value={periodFilter}
+              onChange={e => setPeriodFilter(Number(e.target.value) as 0 | 30 | 60 | 90)}
+              className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 text-gray-600"
+            >
+              <option value={0}>Todos os períodos</option>
+              <option value={30}>Últimos 30 dias</option>
+              <option value={60}>Últimos 60 dias</option>
+              <option value={90}>Últimos 90 dias</option>
+            </select>
+            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
+              <button
+                onClick={() => setView('table')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  view === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <List size={15} />
+                Tabela
+              </button>
+              <button
+                onClick={() => setView('kanban')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  view === 'kanban' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <LayoutGrid size={15} />
+                Kanban
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
-          <button
-            onClick={() => setView('table')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              view === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <List size={15} />
-            Tabela
-          </button>
-          <button
-            onClick={() => setView('kanban')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              view === 'kanban' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <LayoutGrid size={15} />
-            Kanban
-          </button>
-        </div>
+
+        {/* Bulk toolbar */}
+        {selected.size > 0 && (
+          <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5">
+            <span className="text-sm font-medium text-indigo-700">{selected.size} selecionado{selected.size !== 1 ? 's' : ''}</span>
+            <button
+              onClick={bulkAdvance}
+              className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors"
+            >
+              <ChevronRight size={13} /> Avançar etapa
+            </button>
+            <button
+              onClick={exportCSV}
+              className="flex items-center gap-1.5 text-xs bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg font-medium transition-colors"
+            >
+              <Download size={13} /> Exportar seleção
+            </button>
+            <button onClick={() => setSelected(new Set())} className="ml-auto text-indigo-400 hover:text-indigo-600">
+              <X size={16} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Table View */}
@@ -278,6 +367,13 @@ export default function MinistryPanel() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr className="text-xs text-gray-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 w-10">
+                    <button onClick={toggleSelectAll} className="text-gray-400 hover:text-indigo-600">
+                      {selected.size === filtered.length && filtered.length > 0
+                        ? <CheckSquare size={15} className="text-indigo-600" />
+                        : <Square size={15} />}
+                    </button>
+                  </th>
                   <th className="text-left px-5 py-3">Nome</th>
                   <th className="text-left px-5 py-3">Área</th>
                   <th className="text-left px-5 py-3">Coordenador</th>
@@ -292,9 +388,14 @@ export default function MinistryPanel() {
                   return (
                     <tr
                       key={v.id}
-                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                      className={`hover:bg-gray-50 cursor-pointer transition-colors ${selected.has(v.id) ? 'bg-indigo-50' : ''}`}
                       onClick={() => navigate(`/voluntario/${v.id}`)}
                     >
+                      <td className="px-4 py-3.5" onClick={e => { e.stopPropagation(); toggleSelect(v.id); }}>
+                        {selected.has(v.id)
+                          ? <CheckSquare size={15} className="text-indigo-600" />
+                          : <Square size={15} className="text-gray-300" />}
+                      </td>
                       <td className="px-5 py-3.5">
                         <span className="text-sm font-medium text-gray-800">{v.name}</span>
                       </td>

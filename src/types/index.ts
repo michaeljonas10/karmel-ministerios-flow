@@ -65,6 +65,8 @@ export interface Volunteer {
   howFound?: string;
   lastContactDate: string;
   alertDays?: number;
+  birthday?: string;
+  contactAttempts: number;
 }
 
 export interface SubArea {
@@ -72,6 +74,7 @@ export interface SubArea {
   name: string;
   coordinator: string;
   volunteerCount: number;
+  capacity?: number;
 }
 
 export interface Ministry {

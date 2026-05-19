@@ -1053,7 +1053,106 @@ function TabAparencia() {
 }
 
 // ─── Main page ───────────────────────────────────────────────────────────────
-type Tab = 'igreja' | 'link' | 'ministerios' | 'usuarios' | 'aparencia';
+// ─── Tab Automações ──────────────────────────────────────────────────────────
+function TabAutomacoes({ ministries, onToast }: { ministries: import('../types').Ministry[]; onToast: (m: string) => void }) {
+  const [autoSemRetorno, setAutoSemRetorno] = useState(
+    () => localStorage.getItem('autoSemRetornoDays') || '0'
+  );
+  const [goals, setGoals] = useState<Record<string, string>>(() => {
+    try {
+      const g = JSON.parse(localStorage.getItem('ministryGoals') || '{}');
+      return Object.fromEntries(Object.entries(g).map(([k, v]) => [k, String(v)]));
+    } catch { return {}; }
+  });
+  const [capacities, setCapacities] = useState<Record<string, string>>(() => {
+    try {
+      const c = JSON.parse(localStorage.getItem('subAreaCapacities') || '{}');
+      return Object.fromEntries(Object.entries(c).map(([k, v]) => [k, String(v)]));
+    } catch { return {}; }
+  });
+
+  function saveAuto() {
+    localStorage.setItem('autoSemRetornoDays', autoSemRetorno);
+    const numGoals: Record<string, number> = {};
+    Object.entries(goals).forEach(([k, v]) => { const n = parseInt(v); if (n > 0) numGoals[k] = n; });
+    localStorage.setItem('ministryGoals', JSON.stringify(numGoals));
+    const numCaps: Record<string, number> = {};
+    Object.entries(capacities).forEach(([k, v]) => { const n = parseInt(v); if (n > 0) numCaps[k] = n; });
+    localStorage.setItem('subAreaCapacities', JSON.stringify(numCaps));
+    onToast('Configurações de automação salvas!');
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Auto Sem Retorno */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <h3 className="text-sm font-semibold text-gray-800 mb-1">Auto "Sem Retorno"</h3>
+        <p className="text-xs text-gray-500 mb-4">Voluntários sem contato há mais que X dias são automaticamente marcados como Sem Retorno ao carregar o sistema. Use 0 para desativar.</p>
+        <div className="flex items-center gap-3">
+          <input
+            type="number" min="0" max="365"
+            value={autoSemRetorno}
+            onChange={e => setAutoSemRetorno(e.target.value)}
+            className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          />
+          <span className="text-sm text-gray-500">dias sem contato</span>
+          {parseInt(autoSemRetorno) > 0 && (
+            <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">Ativo</span>
+          )}
+        </div>
+      </div>
+
+      {/* Ministry goals */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <h3 className="text-sm font-semibold text-gray-800 mb-1">Metas de Estabelecidos</h3>
+        <p className="text-xs text-gray-500 mb-4">Defina uma meta de voluntários estabelecidos para cada ministério. Aparece no Dashboard.</p>
+        <div className="space-y-3">
+          {ministries.map(m => (
+            <div key={m.id} className="flex items-center gap-3">
+              <span className="text-sm text-gray-700 w-48 truncate">{m.name}</span>
+              <input
+                type="number" min="0" placeholder="0 = sem meta"
+                value={goals[m.id] || ''}
+                onChange={e => setGoals(p => ({ ...p, [m.id]: e.target.value }))}
+                className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+              <span className="text-xs text-gray-400">voluntários</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Sub-area capacity */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <h3 className="text-sm font-semibold text-gray-800 mb-1">Capacidade por Sub-Área</h3>
+        <p className="text-xs text-gray-500 mb-4">Limite de voluntários por sub-área. A barra no painel fica vermelha ao atingir o limite. Use 0 para ilimitado.</p>
+        <div className="space-y-3">
+          {ministries.flatMap(m => m.subAreas.map(sa => (
+            <div key={sa.id} className="flex items-center gap-3">
+              <span className="text-sm text-gray-500 w-28 truncate text-xs">{m.name}</span>
+              <span className="text-sm text-gray-700 w-36 truncate">{sa.name}</span>
+              <input
+                type="number" min="0" placeholder="0 = ilimitado"
+                value={capacities[sa.name] || ''}
+                onChange={e => setCapacities(p => ({ ...p, [sa.name]: e.target.value }))}
+                className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+            </div>
+          )))}
+        </div>
+      </div>
+
+      <button
+        onClick={saveAuto}
+        className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+      >
+        Salvar automações
+      </button>
+    </div>
+  );
+}
+
+type Tab = 'igreja' | 'link' | 'ministerios' | 'usuarios' | 'aparencia' | 'automacoes';
 
 const ALL_TABS: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
   { id: 'igreja', label: 'Igreja', icon: <Church size={16} /> },
@@ -1061,11 +1160,13 @@ const ALL_TABS: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boo
   { id: 'ministerios', label: 'Ministérios', icon: <Users size={16} /> },
   { id: 'usuarios', label: 'Usuários', icon: <UserPlus size={16} />, adminOnly: true },
   { id: 'aparencia', label: 'Aparência', icon: <Palette size={16} /> },
+  { id: 'automacoes', label: 'Automações', icon: <Zap size={16} />, adminOnly: true },
 ];
 
 export default function Configuracoes() {
   usePageTitle('Configurações')
   const { isAdmin } = useAuth();
+  const { ministries } = useMinistries();
   const [activeTab, setActiveTab] = useState<Tab>('igreja');
   const [toast, setToast] = useState('');
 
@@ -1110,6 +1211,7 @@ export default function Configuracoes() {
         {activeTab === 'ministerios' && <TabMinisterios onToast={showToast} />}
         {activeTab === 'usuarios' && isAdmin && <TabUsuarios onToast={showToast} />}
         {activeTab === 'aparencia' && <TabAparencia />}
+        {activeTab === 'automacoes' && isAdmin && <TabAutomacoes ministries={ministries} onToast={showToast} />}
       </div>
 
       {toast && <Toast message={toast} onClose={() => setToast('')} />}

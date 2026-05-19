@@ -526,6 +526,71 @@ export default function Dashboard() {
           </table>
         </div>
       </div>
+
+      {/* ── Coordinator workload + Ministry goals ──────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Coordinator workload */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h2 className="text-base font-semibold text-gray-800 mb-4">Carga por Coordenador</h2>
+          <div className="space-y-3">
+            {(() => {
+              const map: Record<string, { active: number; total: number }> = {};
+              volunteers.forEach(v => {
+                if (!map[v.coordinator]) map[v.coordinator] = { active: 0, total: 0 };
+                map[v.coordinator].total++;
+                if (v.currentStage !== 'estabelecido' && !['mudou_area','nao_retornou'].includes(v.currentStage))
+                  map[v.coordinator].active++;
+              });
+              const sorted = Object.entries(map).sort((a, b) => b[1].active - a[1].active);
+              const max = sorted[0]?.[1]?.active || 1;
+              return sorted.map(([name, { active, total }]) => (
+                <div key={name}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-700 truncate max-w-[200px]">{name}</span>
+                    <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{active} ativos / {total}</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${active >= 15 ? 'bg-red-500' : active >= 8 ? 'bg-orange-400' : 'bg-indigo-500'}`}
+                      style={{ width: `${(active / max) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+
+        {/* Ministry goals */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h2 className="text-base font-semibold text-gray-800 mb-4">Metas de Estabelecidos</h2>
+          <div className="space-y-4">
+            {ministries.map(m => {
+              const mvols = volunteers.filter(v => v.ministryId === m.id);
+              const established = mvols.filter(v => v.currentStage === 'estabelecido').length;
+              const goals: Record<string, number> = (() => {
+                try { return JSON.parse(localStorage.getItem('ministryGoals') || '{}'); } catch { return {}; }
+              })();
+              const goal = goals[m.id] || 0;
+              const pct = goal > 0 ? Math.min((established / goal) * 100, 100) : 0;
+              return (
+                <div key={m.id}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-700">{m.name}</span>
+                    <span className="text-xs text-gray-400">
+                      {established}{goal > 0 ? ` / ${goal} est.` : ' estabelecidos'}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div className="h-2 rounded-full transition-all" style={{ width: goal > 0 ? `${pct}%` : '0%', backgroundColor: m.color }} />
+                  </div>
+                  {goal > 0 && pct >= 100 && <p className="text-xs text-green-600 font-medium mt-0.5">✓ Meta atingida!</p>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

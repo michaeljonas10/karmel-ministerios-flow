@@ -36,7 +36,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 42),
     notes: 'Excelente fotógrafa, já atuou em 3 cultos.',
-    lastContactDate: daysAgo(5),
+    lastContactDate: daysAgo(5), contactAttempts: 0,
   },
   {
     id: 'v002',
@@ -50,7 +50,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'treinamento',
     stageHistory: buildHistory(stagesUpTo('treinamento'), 35),
     notes: 'Tem experiência com Adobe Premiere.',
-    lastContactDate: daysAgo(4),
+    lastContactDate: daysAgo(4), contactAttempts: 0,
   },
   {
     id: 'v003',
@@ -63,7 +63,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'grupo_area',
     stageHistory: buildHistory(stagesUpTo('grupo_area'), 28),
     notes: 'Estudante de Design na UFMG.',
-    lastContactDate: daysAgo(3),
+    lastContactDate: daysAgo(3), contactAttempts: 0,
   },
   {
     id: 'v004',
@@ -77,7 +77,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'coordenador_contatou',
     stageHistory: buildHistory(stagesUpTo('coordenador_contatou'), 20),
     notes: 'Muito engajado, respondeu rapidamente.',
-    lastContactDate: daysAgo(2),
+    lastContactDate: daysAgo(2), contactAttempts: 0,
   },
   {
     id: 'v005',
@@ -91,7 +91,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 55),
     notes: 'Voluntária desde março, já domina o OBS.',
-    lastContactDate: daysAgo(7),
+    lastContactDate: daysAgo(7), contactAttempts: 0,
   },
   {
     id: 'v006',
@@ -104,7 +104,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'primeira_escala',
     stageHistory: buildHistory(stagesUpTo('primeira_escala'), 60),
     notes: 'Técnico de som formado.',
-    lastContactDate: daysAgo(12),
+    lastContactDate: daysAgo(12), contactAttempts: 0,
   },
   {
     id: 'v007',
@@ -119,7 +119,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('contato_coordenador'), 15),
     notes: 'Jornalista, ótima escrita.',
     lastContactDate: daysAgo(15),
-    alertDays: 15,
+    alertDays: 15, contactAttempts: 0,
   },
   {
     id: 'v008',
@@ -133,7 +133,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('direcionado_area'), 10),
     notes: 'Iniciante, entusiasmado.',
     lastContactDate: daysAgo(8),
-    alertDays: 8,
+    alertDays: 8, contactAttempts: 0,
   },
   {
     id: 'v009',
@@ -147,7 +147,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'pesquisa_area',
     stageHistory: buildHistory(stagesUpTo('pesquisa_area'), 8),
     notes: '',
-    lastContactDate: daysAgo(5),
+    lastContactDate: daysAgo(5), contactAttempts: 0,
   },
   {
     id: 'v010',
@@ -161,7 +161,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'grupo_acolhimento',
     stageHistory: buildHistory(stagesUpTo('grupo_acolhimento'), 5),
     notes: 'Veio através do evento Conecta.',
-    lastContactDate: daysAgo(2),
+    lastContactDate: daysAgo(2), contactAttempts: 0,
   },
   {
     id: 'v011',
@@ -174,7 +174,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 45),
     notes: 'Nunca faltou em uma escala.',
-    lastContactDate: daysAgo(3),
+    lastContactDate: daysAgo(3), contactAttempts: 0,
   },
   {
     id: 'v012',
@@ -188,7 +188,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'grupo_area',
     stageHistory: buildHistory(stagesUpTo('grupo_area'), 25),
     notes: 'Fotógrafo amador, muito talentoso.',
-    lastContactDate: daysAgo(6),
+    lastContactDate: daysAgo(6), contactAttempts: 0,
   },
 
   // === LOUVOR ===
@@ -204,7 +204,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 50),
     notes: 'Soprano, já lidera a equipe vocal.',
-    lastContactDate: daysAgo(4),
+    lastContactDate: daysAgo(4), contactAttempts: 0,
   },
   {
     id: 'v014',
@@ -218,7 +218,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('primeira_escala'), 40),
     notes: 'Guitarrista, 10 anos de experiência.',
     lastContactDate: daysAgo(9),
-    alertDays: 9,
+    alertDays: 9, contactAttempts: 0,
   },
   {
     id: 'v015',
@@ -232,7 +232,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'treinamento',
     stageHistory: buildHistory(stagesUpTo('treinamento'), 30),
     notes: 'Tem aula de canto.',
-    lastContactDate: daysAgo(5),
+    lastContactDate: daysAgo(5), contactAttempts: 0,
   },
   {
     id: 'v016',
@@ -246,7 +246,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('coordenador_contatou'), 18),
     notes: '',
     lastContactDate: daysAgo(7),
-    alertDays: 7,
+    alertDays: 7, contactAttempts: 0,
   },
   {
     id: 'v017',
@@ -261,7 +261,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('contato_coordenador'), 12),
     notes: 'Formada em música pela Escola de Música BH.',
     lastContactDate: daysAgo(10),
-    alertDays: 10,
+    alertDays: 10, contactAttempts: 0,
   },
   {
     id: 'v018',
@@ -274,7 +274,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'grupo_acolhimento',
     stageHistory: buildHistory(stagesUpTo('grupo_acolhimento'), 7),
     notes: 'Baterista iniciante.',
-    lastContactDate: daysAgo(3),
+    lastContactDate: daysAgo(3), contactAttempts: 0,
   },
   {
     id: 'v019',
@@ -288,7 +288,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 60),
     notes: 'Uma das principais vocalistas.',
-    lastContactDate: daysAgo(2),
+    lastContactDate: daysAgo(2), contactAttempts: 0,
   },
   {
     id: 'v020',
@@ -302,7 +302,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('grupo_area'), 22),
     notes: 'Baixista.',
     lastContactDate: daysAgo(11),
-    alertDays: 11,
+    alertDays: 11, contactAttempts: 0,
   },
 
   // === INFANTIL ===
@@ -318,7 +318,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 55),
     notes: 'Pedagoga, incrível com as crianças.',
-    lastContactDate: daysAgo(4),
+    lastContactDate: daysAgo(4), contactAttempts: 0,
   },
   {
     id: 'v022',
@@ -331,7 +331,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'treinamento',
     stageHistory: buildHistory(stagesUpTo('treinamento'), 35),
     notes: 'Educador físico.',
-    lastContactDate: daysAgo(6),
+    lastContactDate: daysAgo(6), contactAttempts: 0,
   },
   {
     id: 'v023',
@@ -346,7 +346,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('grupo_area'), 25),
     notes: 'Mãe de 2, muito cuidadosa.',
     lastContactDate: daysAgo(8),
-    alertDays: 8,
+    alertDays: 8, contactAttempts: 0,
   },
   {
     id: 'v024',
@@ -360,7 +360,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('coordenador_contatou'), 15),
     notes: '',
     lastContactDate: daysAgo(14),
-    alertDays: 14,
+    alertDays: 14, contactAttempts: 0,
   },
   {
     id: 'v025',
@@ -375,7 +375,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('direcionado_area'), 10),
     notes: 'Professora de escola pública.',
     lastContactDate: daysAgo(7),
-    alertDays: 7,
+    alertDays: 7, contactAttempts: 0,
   },
   {
     id: 'v026',
@@ -388,7 +388,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'pesquisa_area',
     stageHistory: buildHistory(stagesUpTo('pesquisa_area'), 6),
     notes: '',
-    lastContactDate: daysAgo(3),
+    lastContactDate: daysAgo(3), contactAttempts: 0,
   },
   {
     id: 'v027',
@@ -402,7 +402,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 48),
     notes: 'Enfermeira, indispensável no berçário.',
-    lastContactDate: daysAgo(5),
+    lastContactDate: daysAgo(5), contactAttempts: 0,
   },
 
   // === JOVENS ===
@@ -418,7 +418,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 45),
     notes: 'Líder natural, já ajuda outros voluntários.',
-    lastContactDate: daysAgo(3),
+    lastContactDate: daysAgo(3), contactAttempts: 0,
   },
   {
     id: 'v029',
@@ -432,7 +432,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('primeira_escala'), 32),
     notes: 'Lidera célula no bairro Buritis.',
     lastContactDate: daysAgo(8),
-    alertDays: 8,
+    alertDays: 8, contactAttempts: 0,
   },
   {
     id: 'v030',
@@ -446,7 +446,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'treinamento',
     stageHistory: buildHistory(stagesUpTo('treinamento'), 20),
     notes: 'Organizador nato.',
-    lastContactDate: daysAgo(5),
+    lastContactDate: daysAgo(5), contactAttempts: 0,
   },
   {
     id: 'v031',
@@ -460,7 +460,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('grupo_area'), 14),
     notes: 'Interesse em missões internacionais.',
     lastContactDate: daysAgo(7),
-    alertDays: 7,
+    alertDays: 7, contactAttempts: 0,
   },
   {
     id: 'v032',
@@ -475,7 +475,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('contato_coordenador'), 9),
     notes: '',
     lastContactDate: daysAgo(9),
-    alertDays: 9,
+    alertDays: 9, contactAttempts: 0,
   },
   {
     id: 'v033',
@@ -488,7 +488,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'grupo_acolhimento',
     stageHistory: buildHistory(stagesUpTo('grupo_acolhimento'), 4),
     notes: 'Veio com amigo do ministério.',
-    lastContactDate: daysAgo(2),
+    lastContactDate: daysAgo(2), contactAttempts: 0,
   },
   {
     id: 'v034',
@@ -502,7 +502,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 58),
     notes: 'Organizou o retiro de jovens 2026.',
-    lastContactDate: daysAgo(4),
+    lastContactDate: daysAgo(4), contactAttempts: 0,
   },
 
   // === INTERCESSÃO ===
@@ -518,7 +518,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 50),
     notes: 'Intercessora fiel, nunca falta.',
-    lastContactDate: daysAgo(2),
+    lastContactDate: daysAgo(2), contactAttempts: 0,
   },
   {
     id: 'v036',
@@ -532,7 +532,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('treinamento'), 38),
     notes: '',
     lastContactDate: daysAgo(10),
-    alertDays: 10,
+    alertDays: 10, contactAttempts: 0,
   },
   {
     id: 'v037',
@@ -546,7 +546,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'grupo_area',
     stageHistory: buildHistory(stagesUpTo('grupo_area'), 22),
     notes: 'Costuma orar 2 horas por dia.',
-    lastContactDate: daysAgo(6),
+    lastContactDate: daysAgo(6), contactAttempts: 0,
   },
   {
     id: 'v038',
@@ -560,7 +560,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('coordenador_contatou'), 16),
     notes: '',
     lastContactDate: daysAgo(16),
-    alertDays: 16,
+    alertDays: 16, contactAttempts: 0,
   },
   {
     id: 'v039',
@@ -575,7 +575,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('direcionado_area'), 11),
     notes: 'Pastor de célula em sua antiga igreja.',
     lastContactDate: daysAgo(8),
-    alertDays: 8,
+    alertDays: 8, contactAttempts: 0,
   },
   {
     id: 'v040',
@@ -588,7 +588,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'pesquisa_area',
     stageHistory: buildHistory(stagesUpTo('pesquisa_area'), 5),
     notes: '',
-    lastContactDate: daysAgo(3),
+    lastContactDate: daysAgo(3), contactAttempts: 0,
   },
   {
     id: 'v041',
@@ -602,7 +602,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 62),
     notes: 'Fundador do grupo de oração das 6h.',
-    lastContactDate: daysAgo(3),
+    lastContactDate: daysAgo(3), contactAttempts: 0,
   },
 
   // === HOSPITALIDADE ===
@@ -618,7 +618,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 48),
     notes: 'Sorriso contagiante, excelente para recepção.',
-    lastContactDate: daysAgo(4),
+    lastContactDate: daysAgo(4), contactAttempts: 0,
   },
   {
     id: 'v043',
@@ -632,7 +632,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('treinamento'), 36),
     notes: 'Barista profissional.',
     lastContactDate: daysAgo(7),
-    alertDays: 7,
+    alertDays: 7, contactAttempts: 0,
   },
   {
     id: 'v044',
@@ -646,7 +646,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'grupo_area',
     stageHistory: buildHistory(stagesUpTo('grupo_area'), 24),
     notes: 'Decoradora de eventos.',
-    lastContactDate: daysAgo(5),
+    lastContactDate: daysAgo(5), contactAttempts: 0,
   },
   {
     id: 'v045',
@@ -660,7 +660,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('coordenador_contatou'), 17),
     notes: '',
     lastContactDate: daysAgo(17),
-    alertDays: 17,
+    alertDays: 17, contactAttempts: 0,
   },
   {
     id: 'v046',
@@ -675,7 +675,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('contato_coordenador'), 13),
     notes: 'Trabalha em atendimento ao cliente.',
     lastContactDate: daysAgo(11),
-    alertDays: 11,
+    alertDays: 11, contactAttempts: 0,
   },
   {
     id: 'v047',
@@ -688,7 +688,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'direcionado_area',
     stageHistory: buildHistory(stagesUpTo('direcionado_area'), 8),
     notes: '',
-    lastContactDate: daysAgo(6),
+    lastContactDate: daysAgo(6), contactAttempts: 0,
   },
   {
     id: 'v048',
@@ -702,7 +702,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'cadastrado',
     stageHistory: buildHistory(stagesUpTo('cadastrado'), 3),
     notes: 'Novo cadastro, aguardando contato.',
-    lastContactDate: daysAgo(3),
+    lastContactDate: daysAgo(3), contactAttempts: 0,
   },
   {
     id: 'v049',
@@ -715,7 +715,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'estabelecido',
     stageHistory: buildHistory(stagesUpTo('estabelecido'), 52),
     notes: 'Controla todo o fluxo do estacionamento.',
-    lastContactDate: daysAgo(6),
+    lastContactDate: daysAgo(6), contactAttempts: 0,
   },
   {
     id: 'v050',
@@ -730,7 +730,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('primeira_escala'), 30),
     notes: 'Bilíngue, ajuda com visitantes estrangeiros.',
     lastContactDate: daysAgo(10),
-    alertDays: 10,
+    alertDays: 10, contactAttempts: 0,
   },
   {
     id: 'v051',
@@ -743,7 +743,7 @@ export const volunteers: Volunteer[] = [
     currentStage: 'grupo_acolhimento',
     stageHistory: buildHistory(stagesUpTo('grupo_acolhimento'), 7),
     notes: 'YouTuber com 5k seguidores.',
-    lastContactDate: daysAgo(4),
+    lastContactDate: daysAgo(4), contactAttempts: 0,
   },
   {
     id: 'v052',
@@ -758,7 +758,7 @@ export const volunteers: Volunteer[] = [
     stageHistory: buildHistory(stagesUpTo('grupo_area'), 33),
     notes: 'Mezzo-soprano, fez conservatório.',
     lastContactDate: daysAgo(9),
-    alertDays: 9,
+    alertDays: 9, contactAttempts: 0,
   },
 ];
 
