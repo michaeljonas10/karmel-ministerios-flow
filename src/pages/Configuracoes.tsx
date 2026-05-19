@@ -686,16 +686,15 @@ function TabMinisterios({ onToast }: { onToast: (msg: string) => void }) {
 }
 
 // ─── Tab 4 — Usuários ────────────────────────────────────────────────────────
-const SUPER_ADMIN_EMAIL = 'michael.j.a.souza@gmail.com';
-
 function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
   const { ministries } = useMinistries();
+  const { isSuperAdmin, profile: myProfile } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'coordinator', ministry_id: '', sub_areas: [] as string[] });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'coordinator' as string, ministry_id: '', sub_areas: [] as string[] });
   const [showPwd, setShowPwd] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -722,7 +721,12 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
       setFormError('Preencha todos os campos obrigatórios.');
       return;
     }
-    if (form.role !== 'admin' && !form.ministry_id) {
+    // Admins can only create coordinators
+    if (!isSuperAdmin && form.role !== 'coordinator') {
+      setFormError('Administradores só podem criar coordenadores.');
+      return;
+    }
+    if (form.role !== 'admin' && form.role !== 'super_admin' && !form.ministry_id) {
       setFormError('Selecione o ministério.');
       return;
     }
@@ -755,9 +759,16 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
     }
   };
 
+  const canDelete = (target: UserProfile) => {
+    if (target.id === myProfile?.id) return false; // can't delete yourself
+    if (target.role === 'super_admin') return false; // nobody can delete super_admin
+    if (isSuperAdmin) return true; // super_admin can delete anyone else
+    return target.role === 'coordinator'; // admin can only delete coordinators
+  };
+
   const handleDelete = async (id: string) => {
     const target = users.find(u => u.id === id);
-    if (!target || target.email === SUPER_ADMIN_EMAIL || target.role !== 'coordinator') return;
+    if (!target || !canDelete(target)) return;
     if (!window.confirm('Tem certeza que deseja remover este usuário?')) return;
     setDeleteId(id);
     // Delete from user_profiles (auth user remains but loses app access without profile)
@@ -801,13 +812,13 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {users.map(u => {
-                const isSuperAdmin = u.email === SUPER_ADMIN_EMAIL;
+                const isTargetSuperAdmin = u.role === 'super_admin';
                 return (
                 <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isSuperAdmin ? 'bg-violet-100' : u.role === 'admin' ? 'bg-indigo-100' : 'bg-purple-100'}`}>
-                        {isSuperAdmin
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isTargetSuperAdmin ? 'bg-violet-100' : u.role === 'admin' ? 'bg-indigo-100' : 'bg-purple-100'}`}>
+                        {isTargetSuperAdmin
                           ? <ShieldCheck size={14} className="text-violet-600" />
                           : u.role === 'admin'
                           ? <ShieldCheck size={14} className="text-indigo-600" />
@@ -821,7 +832,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                     <span className="text-sm text-gray-600">{u.email}</span>
                   </td>
                   <td className="px-5 py-3.5">
-                    {isSuperAdmin
+                    {isTargetSuperAdmin
                       ? <span className="inline-flex items-center gap-1 bg-violet-100 text-violet-700 text-xs font-semibold px-2.5 py-1 rounded-full"><ShieldCheck size={11} /> Super Admin</span>
                       : u.role === 'admin'
                       ? <span className="inline-block bg-indigo-100 text-indigo-700 text-xs font-semibold px-2.5 py-1 rounded-full">Admin</span>
@@ -834,7 +845,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                     <span className="text-sm text-gray-600">{getMinistryName(u.ministry_id)}</span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    {!isSuperAdmin && u.role === 'coordinator' && (
+                    {canDelete(u) && (
                       <button
                         onClick={() => handleDelete(u.id)}
                         disabled={deleteId === u.id}
@@ -914,11 +925,14 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Perfil *</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: 'coordinator', label: 'Coordenador' },
-                    { value: 'ministry_leader', label: 'Líder' },
-                    { value: 'admin', label: 'Administrador' },
-                  ].map(opt => (
+                  {(isSuperAdmin
+                    ? [
+                        { value: 'coordinator', label: 'Coordenador' },
+                        { value: 'ministry_leader', label: 'Líder' },
+                        { value: 'admin', label: 'Administrador' },
+                      ]
+                    : [{ value: 'coordinator', label: 'Coordenador' }]
+                  ).map(opt => (
                     <label key={opt.value} className="flex items-center gap-2 cursor-pointer border rounded-lg px-3 py-2 text-sm transition-colors"
                       style={form.role === opt.value ? { borderColor: 'var(--accent)', backgroundColor: 'var(--accent-light)', color: 'var(--accent-text)' } : { borderColor: '#d1d5db', color: '#374151' }}>
                       <input type="radio" name="role" value={opt.value} checked={form.role === opt.value}

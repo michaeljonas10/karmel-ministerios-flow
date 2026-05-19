@@ -70,7 +70,7 @@ export default function Layout({ children }: LayoutProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { profile, isAdmin, isLeader, signOut } = useAuth();
+  const { profile, isAdmin, isSuperAdmin, isLeader, signOut } = useAuth();
   const { ministries } = useMinistries();
   const { volunteers: allVolunteers } = useVolunteers();
   const alertCount = allVolunteers.filter(v => getDaysSinceLastContact(v) >= 7).length;
@@ -193,7 +193,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="px-3 pb-4">
             <div className="rounded-lg px-3 py-2.5" style={{ backgroundColor: 'var(--sidebar-user-card)' }}>
               <div className="flex items-center gap-2 mb-1">
-                {profile.role === 'admin'
+                {(profile.role === 'admin' || profile.role === 'super_admin')
                   ? <ShieldCheck size={14} style={{ color: 'var(--sidebar-text)' }} />
                   : <User size={14} style={{ color: 'var(--sidebar-muted)' }} />
                 }
@@ -202,7 +202,7 @@ export default function Layout({ children }: LayoutProps) {
                 </p>
               </div>
               <p className="text-xs mb-2" style={{ color: 'var(--sidebar-muted)' }}>
-                {profile.role === 'admin' ? 'Administrador' : profile.role === 'ministry_leader' ? 'Líder de Ministério' : 'Coordenador'}
+                {profile.role === 'super_admin' ? 'Super Admin' : profile.role === 'admin' ? 'Administrador' : profile.role === 'ministry_leader' ? 'Líder de Ministério' : 'Coordenador'}
               </p>
               <button
                 onClick={() => signOut().then(() => navigate('/login'))}
@@ -289,7 +289,7 @@ export default function Layout({ children }: LayoutProps) {
                   backgroundColor: 'var(--badge-admin-bg)',
                   color: 'var(--badge-admin-text)',
                 }}>
-                  {profile.role === 'admin' ? 'Admin' : 'Coordenador'}
+                  {profile.role === 'super_admin' ? 'Super Admin' : profile.role === 'admin' ? 'Admin' : profile.role === 'ministry_leader' ? 'Líder' : 'Coordenador'}
                 </span>
               )}
               <button

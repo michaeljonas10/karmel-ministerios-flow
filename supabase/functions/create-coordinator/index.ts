@@ -27,14 +27,14 @@ Deno.serve(async (req) => {
     const { data: callerProfile } = await supabase
       .from('user_profiles').select('role,ministry_id').eq('id', caller.id).single()
 
-    const isAdmin = callerProfile?.role === 'admin'
+    const isAdmin = callerProfile?.role === 'admin' || callerProfile?.role === 'super_admin'
     const isLeader = callerProfile?.role === 'ministry_leader'
 
     if (!isAdmin && !isLeader) {
       return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: corsHeaders })
     }
 
-    // Leaders can only create coordinators for their own ministry
+    // Admins can create any role; leaders can only create coordinators for their own ministry
     const targetRole = isAdmin ? (role || 'coordinator') : 'coordinator'
     const targetMinistry = isAdmin ? (ministry_id || null) : callerProfile?.ministry_id
 

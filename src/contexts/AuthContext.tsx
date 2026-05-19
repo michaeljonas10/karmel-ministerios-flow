@@ -7,7 +7,7 @@ export interface UserProfile {
   id: string
   email: string
   name: string
-  role: 'admin' | 'ministry_leader' | 'coordinator'
+  role: 'super_admin' | 'admin' | 'ministry_leader' | 'coordinator'
   ministry_id: string | null
   sub_areas: string[]
   avatar_url: string | null
@@ -17,6 +17,7 @@ interface AuthContextType {
   user: User | null
   profile: UserProfile | null
   loading: boolean
+  isSuperAdmin: boolean
   isAdmin: boolean
   isLeader: boolean
   isCoordinator: boolean
@@ -107,7 +108,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       profile,
       loading,
-      isAdmin: profile?.role === 'admin',
+      isSuperAdmin: profile?.role === 'super_admin',
+      isAdmin: profile?.role === 'admin' || profile?.role === 'super_admin',
       isLeader: profile?.role === 'ministry_leader',
       isCoordinator: profile?.role === 'coordinator',
       signIn,
