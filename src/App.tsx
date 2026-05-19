@@ -26,11 +26,12 @@ function LoadingScreen() {
   );
 }
 
-function ProtectedRoute({ children, adminOnly = false }: { children: ReactNode; adminOnly?: boolean }) {
-  const { user, loading, isAdmin } = useAuth();
+function ProtectedRoute({ children, adminOnly = false, superAdminOnly = false }: { children: ReactNode; adminOnly?: boolean; superAdminOnly?: boolean }) {
+  const { user, loading, isAdmin, isSuperAdmin } = useAuth();
 
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
+  if (superAdminOnly && !isSuperAdmin) return <Navigate to="/" replace />;
   if (adminOnly && !isAdmin) return <Navigate to="/meu-ministerio" replace />;
 
   return <>{children}</>;
@@ -132,7 +133,7 @@ function AppRoutes() {
               <Route
                 path="/suporte"
                 element={
-                  <ProtectedRoute adminOnly>
+                  <ProtectedRoute superAdminOnly>
                     <Suporte />
                   </ProtectedRoute>
                 }

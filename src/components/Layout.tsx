@@ -70,7 +70,7 @@ export default function Layout({ children }: LayoutProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { profile, isAdmin, isLeader, signOut } = useAuth();
+  const { profile, isAdmin, isSuperAdmin, isLeader, signOut } = useAuth();
   const { ministries } = useMinistries();
   const { volunteers: allVolunteers } = useVolunteers();
   const alertCount = allVolunteers.filter(v => getDaysSinceLastContact(v) >= 7).length;
@@ -160,7 +160,7 @@ export default function Layout({ children }: LayoutProps) {
                 <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Sistema</p>
               </div>
               <SideLink to="/configuracoes" icon={<Settings size={18} />} label="Configurações" onClose={() => setSidebarOpen(false)} />
-              <SideLink to="/suporte" icon={<Headphones size={18} />} label="Suporte" onClose={() => setSidebarOpen(false)} />
+              {isSuperAdmin && <SideLink to="/suporte" icon={<Headphones size={18} />} label="Suporte" onClose={() => setSidebarOpen(false)} />}
               <SideLink to="/ajuda" icon={<HelpCircle size={18} />} label="Ajuda & Suporte" onClose={() => setSidebarOpen(false)} />
             </>
           )}

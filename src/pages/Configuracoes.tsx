@@ -7,7 +7,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import type { ThemeId } from '../contexts/ThemeContext';
 import {
   Settings, Church, Link2, Users, Copy, Check, Plus, X, Pencil, Trash2, ChevronDown, ChevronUp,
-  Eye, EyeOff, UserPlus, ShieldCheck, User, Palette,
+  Eye, EyeOff, UserPlus, ShieldCheck, User, Palette, Key,
   Camera, Music, Baby, Zap, Heart, Home, Star, Shield, BookOpen, Globe, Cross, Mic, Film, Radio, Tv, Headphones, Volume2,
   Car, Coffee, Megaphone, Flame, Waves, Gift, Monitor, Flower2, Utensils, Bus, Paintbrush, HandHeart, Scissors, Smile,
 } from 'lucide-react';
@@ -692,11 +692,16 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<UserProfile | null>(null);
+  const [resetTarget, setResetTarget] = useState<UserProfile | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'coordinator' as string, ministry_id: '', sub_areas: [] as string[] });
   const [showPwd, setShowPwd] = useState(false);
   const [formError, setFormError] = useState('');
+  const [resetPwd, setResetPwd] = useState('');
+  const [resetPwdShow, setResetPwdShow] = useState(false);
+  const [resetSaving, setResetSaving] = useState(false);
 
   const selectedMinistry = ministries.find(m => m.id === form.ministry_id);
   const toggleSubArea = (id: string) =>
@@ -711,7 +716,15 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
   useEffect(() => { fetchUsers(); }, []);
 
   const openModal = () => {
+    setEditTarget(null);
     setForm({ name: '', email: '', password: '', role: 'coordinator', ministry_id: '', sub_areas: [] });
+    setFormError('');
+    setModalOpen(true);
+  };
+
+  const openEdit = (u: UserProfile) => {
+    setEditTarget(u);
+    setForm({ name: u.name, email: u.email, password: '', role: u.role, ministry_id: u.ministry_id ?? '', sub_areas: u.sub_areas ?? [] });
     setFormError('');
     setModalOpen(true);
   };
@@ -721,7 +734,6 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
       setFormError('Preencha todos os campos obrigatórios.');
       return;
     }
-    // Admins can only create coordinators
     if (!isSuperAdmin && form.role !== 'coordinator') {
       setFormError('Administradores só podem criar coordenadores.');
       return;
@@ -743,7 +755,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
           email: form.email.trim(),
           password: form.password,
           role: form.role,
-          ministry_id: form.ministry_id,
+          ministry_id: form.ministry_id || null,
           sub_areas: form.role === 'coordinator' ? form.sub_areas : [],
         }),
       }
@@ -759,11 +771,32 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
     }
   };
 
+  const handleEdit = async () => {
+    if (!editTarget) return;
+    if (!form.name.trim()) { setFormError('Nome obrigatório.'); return; }
+    setSaving(true);
+    setFormError('');
+    const updates: Record<string, unknown> = { name: form.name.trim(), ministry_id: form.ministry_id || null, sub_areas: form.sub_areas };
+    if (isSuperAdmin) updates.role = form.role;
+    const { error } = await supabase.from('user_profiles').update(updates).eq('id', editTarget.id);
+    setSaving(false);
+    if (error) { setFormError(error.message); return; }
+    setModalOpen(false);
+    await fetchUsers();
+    onToast('Usuário atualizado.');
+  };
+
+  const canEdit = (target: UserProfile) => {
+    if (target.role === 'super_admin' && target.id !== myProfile?.id) return false;
+    if (isSuperAdmin) return true;
+    return target.role === 'coordinator';
+  };
+
   const canDelete = (target: UserProfile) => {
-    if (target.id === myProfile?.id) return false; // can't delete yourself
-    if (target.role === 'super_admin') return false; // nobody can delete super_admin
-    if (isSuperAdmin) return true; // super_admin can delete anyone else
-    return target.role === 'coordinator'; // admin can only delete coordinators
+    if (target.id === myProfile?.id) return false;
+    if (target.role === 'super_admin') return false;
+    if (isSuperAdmin) return true;
+    return target.role === 'coordinator';
   };
 
   const handleDelete = async (id: string) => {
@@ -771,17 +804,41 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
     if (!target || !canDelete(target)) return;
     if (!window.confirm('Tem certeza que deseja remover este usuário?')) return;
     setDeleteId(id);
-    // Delete from user_profiles (auth user remains but loses app access without profile)
     await supabase.from('user_profiles').delete().eq('id', id);
     setDeleteId(null);
     await fetchUsers();
     onToast('Usuário removido.');
   };
 
+  const handleResetPassword = async () => {
+    if (!resetTarget || resetPwd.length < 6) return;
+    setResetSaving(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(
+      'https://fzbxzcwopgwsojxmckpa.supabase.co/functions/v1/reset-user-password',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ userId: resetTarget.id, password: resetPwd }),
+      }
+    );
+    const json = await res.json();
+    setResetSaving(false);
+    if (!res.ok || json.error) {
+      onToast('Erro ao redefinir senha: ' + (json.error || res.status));
+    } else {
+      setResetTarget(null);
+      setResetPwd('');
+      onToast(`Senha de "${resetTarget.name}" redefinida.`);
+    }
+  };
+
   const getMinistryName = (id: string | null) => {
     if (!id) return '—';
     return ministries.find(m => m.id === id)?.name ?? id;
   };
+
+  const roleLabel = (role: string) => role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : role === 'ministry_leader' ? 'Líder' : 'Coordenador';
 
   if (loading) return <div className="p-8 text-gray-400 text-sm">Carregando...</div>;
 
@@ -845,16 +902,36 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                     <span className="text-sm text-gray-600">{getMinistryName(u.ministry_id)}</span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    {canDelete(u) && (
-                      <button
-                        onClick={() => handleDelete(u.id)}
-                        disabled={deleteId === u.id}
-                        className="p-1.5 text-gray-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40"
-                        title="Remover"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      {canEdit(u) && (
+                        <button
+                          onClick={() => openEdit(u)}
+                          className="p-1.5 text-gray-300 hover:text-indigo-500 rounded-lg hover:bg-indigo-50 transition-colors"
+                          title="Editar"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                      )}
+                      {isSuperAdmin && u.id !== myProfile?.id && u.role !== 'super_admin' && (
+                        <button
+                          onClick={() => { setResetTarget(u); setResetPwd(''); setResetPwdShow(false); }}
+                          className="p-1.5 text-gray-300 hover:text-amber-500 rounded-lg hover:bg-amber-50 transition-colors"
+                          title="Redefinir senha"
+                        >
+                          <Key size={15} />
+                        </button>
+                      )}
+                      {canDelete(u) && (
+                        <button
+                          onClick={() => handleDelete(u.id)}
+                          disabled={deleteId === u.id}
+                          className="p-1.5 text-gray-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40"
+                          title="Remover"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
                 );
@@ -870,7 +947,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Create / Edit Modal */}
       {modalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4"
@@ -878,7 +955,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
         >
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[92dvh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <h2 className="font-bold text-gray-900 text-lg">Novo Usuário</h2>
+              <h2 className="font-bold text-gray-900 text-lg">{editTarget ? `Editar — ${editTarget.name}` : 'Novo Usuário'}</h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
@@ -893,79 +970,74 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-                  placeholder="coordenador@lagoinha.com.br"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Senha temporária *</label>
-                <div className="relative">
-                  <input
-                    type={showPwd ? 'text' : 'password'}
-                    value={form.password}
-                    onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
-                    placeholder="Mínimo 6 caracteres"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPwd(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              {!editTarget && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                      placeholder="coordenador@lagoinha.com.br"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Senha temporária *</label>
+                    <div className="relative">
+                      <input
+                        type={showPwd ? 'text' : 'password'}
+                        value={form.password}
+                        onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+                        placeholder="Mínimo 6 caracteres"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <button type="button" onClick={() => setShowPwd(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+              {/* Role selector: only super_admin can change roles, and only for non-super_admin targets */}
+              {isSuperAdmin && (!editTarget || editTarget.role !== 'super_admin') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Perfil *</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: 'coordinator', label: 'Coordenador' },
+                      { value: 'ministry_leader', label: 'Líder' },
+                      { value: 'admin', label: 'Administrador' },
+                    ].map(opt => (
+                      <label key={opt.value} className="flex items-center gap-2 cursor-pointer border rounded-lg px-3 py-2 text-sm transition-colors"
+                        style={form.role === opt.value ? { borderColor: 'var(--accent)', backgroundColor: 'var(--accent-light)', color: 'var(--accent-text)' } : { borderColor: '#d1d5db', color: '#374151' }}>
+                        <input type="radio" name="role" value={opt.value} checked={form.role === opt.value}
+                          onChange={e => setForm(p => ({ ...p, role: e.target.value, ministry_id: e.target.value === 'admin' ? '' : p.ministry_id, sub_areas: [] }))}
+                          className="hidden" />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {form.role !== 'admin' && form.role !== 'super_admin' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ministério *</label>
+                  <select
+                    value={form.ministry_id}
+                    onChange={e => setForm(p => ({ ...p, ministry_id: e.target.value, sub_areas: [] }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
+                    <option value="">Selecione...</option>
+                    {ministries.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Perfil *</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(isSuperAdmin
-                    ? [
-                        { value: 'coordinator', label: 'Coordenador' },
-                        { value: 'ministry_leader', label: 'Líder' },
-                        { value: 'admin', label: 'Administrador' },
-                      ]
-                    : [{ value: 'coordinator', label: 'Coordenador' }]
-                  ).map(opt => (
-                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer border rounded-lg px-3 py-2 text-sm transition-colors"
-                      style={form.role === opt.value ? { borderColor: 'var(--accent)', backgroundColor: 'var(--accent-light)', color: 'var(--accent-text)' } : { borderColor: '#d1d5db', color: '#374151' }}>
-                      <input type="radio" name="role" value={opt.value} checked={form.role === opt.value}
-                        onChange={e => setForm(p => ({ ...p, role: e.target.value, ministry_id: e.target.value === 'admin' ? '' : p.ministry_id, sub_areas: [] }))}
-                        className="hidden" />
-                      {opt.label}
-                    </label>
-                  ))}
-                </div>
-                {form.role === 'admin' && (
-                  <p className="mt-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    Administradores têm acesso total ao sistema.
-                  </p>
-                )}
-              </div>
-              {form.role !== 'admin' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ministério *</label>
-                <select
-                  value={form.ministry_id}
-                  onChange={e => setForm(p => ({ ...p, ministry_id: e.target.value, sub_areas: [] }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">Selecione...</option>
-                  {ministries.map(m => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </select>
-              </div>
               )}
               {form.role === 'coordinator' && selectedMinistry && selectedMinistry.subAreas.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Sub-áreas que irá coordenar</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Sub-áreas</label>
                   <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
                     {selectedMinistry.subAreas.map(sa => (
                       <label key={sa.id} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
@@ -983,18 +1055,57 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
               )}
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 flex-shrink-0">
-              <button
-                onClick={() => setModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
-              >
+              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800">
                 Cancelar
               </button>
               <button
-                onClick={handleCreate}
+                onClick={editTarget ? handleEdit : handleCreate}
                 disabled={saving}
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
               >
-                {saving ? 'Criando...' : form.role === 'admin' ? 'Criar Admin' : form.role === 'ministry_leader' ? 'Criar Líder' : 'Criar Coordenador'}
+                {saving ? 'Salvando...' : editTarget ? 'Salvar alterações' : `Criar ${roleLabel(form.role)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {resetTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4"
+          onClick={e => { if (e.target === e.currentTarget) setResetTarget(null); }}
+        >
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="font-bold text-gray-900 text-lg">Redefinir Senha</h2>
+              <button onClick={() => setResetTarget(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                Nova senha para <span className="font-semibold">{resetTarget.name}</span>
+              </p>
+              <div className="relative">
+                <input
+                  type={resetPwdShow ? 'text' : 'password'}
+                  value={resetPwd}
+                  onChange={e => setResetPwd(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <button type="button" onClick={() => setResetPwdShow(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {resetPwdShow ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+              <button onClick={() => setResetTarget(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800">Cancelar</button>
+              <button
+                onClick={handleResetPassword}
+                disabled={resetPwd.length < 6 || resetSaving}
+                className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                {resetSaving ? 'Salvando...' : 'Redefinir senha'}
               </button>
             </div>
           </div>
