@@ -70,7 +70,7 @@ export default function Layout({ children }: LayoutProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { profile, isAdmin, isSuperAdmin, isLeader, signOut } = useAuth();
+  const { profile, isAdmin, isLeader, signOut } = useAuth();
   const { ministries } = useMinistries();
   const { volunteers: allVolunteers } = useVolunteers();
   const alertCount = allVolunteers.filter(v => getDaysSinceLastContact(v) >= 7).length;
