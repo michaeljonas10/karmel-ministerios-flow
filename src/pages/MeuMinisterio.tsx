@@ -3,17 +3,25 @@ import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   Search, Users, CheckCircle, AlertTriangle, LogOut,
-  ChevronRight, Plus, Pencil, Trash2, X, UserPlus, Eye, EyeOff, ShieldCheck
+  ChevronRight, Plus, Pencil, Trash2, X, UserPlus, Eye, EyeOff,
+  LayoutGrid, List, TrendingUp, Award, Clock, ShieldCheck,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useVolunteers } from '../hooks/useVolunteers'
 import { useMinistries } from '../hooks/useMinistries'
 import { getDaysSinceLastContact } from '../data/volunteers'
-import { STAGE_ORDER } from '../types'
+import { STAGE_ORDER, STAGE_LABELS, OFF_TRACK_STAGES } from '../types'
+import type { JourneyStage } from '../types'
 import JourneyBadge from '../components/JourneyBadge'
+import VolunteerCard from '../components/VolunteerCard'
 import { supabase } from '../lib/supabase'
 import WaButton from '../components/WaButton'
 import type { Volunteer } from '../types'
+import {
+  DndContext, DragOverlay, PointerSensor, TouchSensor,
+  useSensor, useSensors, useDroppable, useDraggable,
+  type DragEndEvent, type DragStartEvent, type DragOverEvent,
+} from '@dnd-kit/core'
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
 function Toast({ message, onClose }: { message: string; onClose: () => void }) {
@@ -451,6 +459,264 @@ function CreateCoordinatorModal({
   )
 }
 
+// ─── Kanban drag/drop pieces ─────────────────────────────────────────────────
+function DraggableCard({ volunteer }: { volunteer: Volunteer }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: volunteer.id })
+  return (
+    <div ref={setNodeRef} {...listeners} {...attributes} style={{ opacity: isDragging ? 0.4 : 1, touchAction: 'none' }}>
+      <VolunteerCard volunteer={volunteer} />
+    </div>
+  )
+}
+
+function DroppableColumn({ stage, children, isOver, offTrack = false }: {
+  stage: JourneyStage; children: React.ReactNode; isOver: boolean; offTrack?: boolean
+}) {
+  const { setNodeRef } = useDroppable({ id: stage })
+  const isAmber = stage === 'mudou_area'
+  let cls = 'rounded-b-xl min-h-20 p-2 space-y-2 transition-colors '
+  if (offTrack) {
+    cls += isOver
+      ? isAmber ? 'bg-amber-50 ring-2 ring-amber-300 ring-inset' : 'bg-red-50 ring-2 ring-red-300 ring-inset'
+      : isAmber ? 'bg-amber-50/40' : 'bg-red-50/40'
+  } else {
+    cls += isOver ? 'bg-indigo-50 ring-2 ring-indigo-300 ring-inset' : 'bg-gray-50'
+  }
+  return <div ref={setNodeRef} className={cls}>{children}</div>
+}
+
+// ─── Stage funnel chart ───────────────────────────────────────────────────────
+function StageFunnel({ volunteers, accentColor }: { volunteers: Volunteer[]; accentColor: string }) {
+  const counts = STAGE_ORDER.map(s => ({ stage: s, n: volunteers.filter(v => v.currentStage === s).length }))
+  const offCounts = OFF_TRACK_STAGES.map(s => ({ stage: s, n: volunteers.filter(v => v.currentStage === s).length }))
+  const maxN = Math.max(...counts.map(c => c.n), 1)
+
+  const stageColor = (stage: JourneyStage) => {
+    if (stage === 'estabelecido') return '#22c55e'
+    if (['contato_coordenador', 'coordenador_contatou'].includes(stage)) return '#f97316'
+    return accentColor
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <TrendingUp size={15} className="text-gray-400" />
+        <h3 className="text-sm font-semibold text-gray-700">Funil de Jornada</h3>
+      </div>
+      <div className="space-y-2">
+        {counts.map(({ stage, n }) => {
+          if (n === 0) return null
+          return (
+            <div key={stage} className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 w-32 sm:w-40 flex-shrink-0 truncate">{STAGE_LABELS[stage]}</span>
+              <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+                <div
+                  className="h-3 rounded-full transition-all duration-500"
+                  style={{ width: `${(n / maxN) * 100}%`, backgroundColor: stageColor(stage) }}
+                />
+              </div>
+              <span className="text-xs font-bold text-gray-700 w-5 text-right flex-shrink-0">{n}</span>
+            </div>
+          )
+        })}
+      </div>
+      {offCounts.some(c => c.n > 0) && (
+        <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
+          {offCounts.map(({ stage, n }) => n === 0 ? null : (
+            <div key={stage} className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-32 sm:w-40 flex-shrink-0 truncate">{STAGE_LABELS[stage]}</span>
+              <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                <div className="h-2 rounded-full bg-red-400" style={{ width: `${(n / maxN) * 100}%` }} />
+              </div>
+              <span className="text-xs text-gray-400 w-5 text-right flex-shrink-0">{n}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Coordinator hero header ──────────────────────────────────────────────────
+function CoordHero({ name, subAreas, ministry, volunteers }: {
+  name: string; subAreas: { id: string; name: string }[]; ministry: { name: string; color: string } | undefined; volunteers: Volunteer[]
+}) {
+  const established = volunteers.filter(v => v.currentStage === 'estabelecido').length
+  const inJourney = volunteers.filter(v => !OFF_TRACK_STAGES.includes(v.currentStage) && v.currentStage !== 'estabelecido').length
+  const alerts = volunteers.filter(v => getDaysSinceLastContact(v) >= 7).length
+  const color = ministry?.color ?? '#6366f1'
+
+  return (
+    <div className="rounded-2xl p-5 sm:p-6 text-white" style={{ background: `linear-gradient(135deg, ${color}ee, ${color}99)` }}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-white/70 text-xs font-medium uppercase tracking-wider mb-1">{ministry?.name ?? 'Ministério'}</p>
+          <h2 className="text-xl sm:text-2xl font-bold truncate">{name}</h2>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {subAreas.length > 0
+              ? subAreas.map(sa => (
+                  <span key={sa.id} className="text-xs bg-white/20 text-white px-2.5 py-0.5 rounded-full font-medium">{sa.name}</span>
+                ))
+              : <span className="text-xs text-white/60">Sem sub-área definida</span>
+            }
+          </div>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className="text-3xl font-bold">{volunteers.length}</p>
+          <p className="text-white/70 text-xs">voluntários</p>
+        </div>
+      </div>
+      <div className="flex gap-5 mt-5 pt-4 border-t border-white/20 flex-wrap">
+        <div>
+          <p className="text-lg font-bold">{established}</p>
+          <p className="text-white/70 text-xs">Estabelecidos</p>
+        </div>
+        <div>
+          <p className="text-lg font-bold">{inJourney}</p>
+          <p className="text-white/70 text-xs">Em Jornada</p>
+        </div>
+        {alerts > 0 && (
+          <div>
+            <p className="text-lg font-bold text-yellow-200">{alerts}</p>
+            <p className="text-white/70 text-xs">Follow-up</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Sub-area summary cards (multi-area coordinators) ────────────────────────
+function SubAreaCards({ subAreas, volunteers, accentColor, filter, onFilter }: {
+  subAreas: { id: string; name: string }[]
+  volunteers: Volunteer[]
+  accentColor: string
+  filter: string
+  onFilter: (f: string) => void
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {subAreas.map(sa => {
+        const vols = volunteers.filter(v => v.subArea === sa.name)
+        const est = vols.filter(v => v.currentStage === 'estabelecido').length
+        const alerts = vols.filter(v => getDaysSinceLastContact(v) >= 7).length
+        const isActive = filter === sa.name
+        return (
+          <div
+            key={sa.id}
+            onClick={() => onFilter(isActive ? 'all' : sa.name)}
+            className={`rounded-xl p-4 border cursor-pointer transition-all select-none ${isActive ? 'ring-2' : 'bg-white border-gray-100 shadow-sm hover:shadow-md'}`}
+            style={isActive ? { borderColor: accentColor, backgroundColor: `${accentColor}18` } : {}}
+          >
+            <p className="text-sm font-semibold text-gray-800 leading-tight truncate">{sa.name}</p>
+            <div className="flex items-end justify-between mt-3">
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{vols.length}</p>
+                <p className="text-xs text-gray-400">voluntários</p>
+              </div>
+              <div className="text-right space-y-0.5">
+                <div className="flex items-center gap-1 justify-end">
+                  <Award size={11} className="text-green-500" />
+                  <span className="text-xs text-green-600 font-medium">{est} est.</span>
+                </div>
+                {alerts > 0 && (
+                  <div className="flex items-center gap-1 justify-end">
+                    <Clock size={11} className="text-orange-500" />
+                    <span className="text-xs text-orange-600 font-medium">{alerts} alerta</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Coordinator Kanban ───────────────────────────────────────────────────────
+function CoordKanban({ volunteers, onMove, accentColor }: {
+  volunteers: Volunteer[]
+  onMove: (id: string, stage: JourneyStage) => Promise<void>
+  accentColor: string
+}) {
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [overStage, setOverStage] = useState<JourneyStage | null>(null)
+  const ALL_STAGES = [...STAGE_ORDER, ...OFF_TRACK_STAGES]
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
+  )
+
+  function handleDragStart(e: DragStartEvent) { setActiveId(e.active.id as string) }
+  function handleDragOver(e: DragOverEvent) {
+    const s = e.over?.id as JourneyStage | null
+    setOverStage(ALL_STAGES.includes(s as JourneyStage) ? s : null)
+  }
+  async function handleDragEnd(e: DragEndEvent) {
+    setActiveId(null); setOverStage(null)
+    const { active, over } = e
+    if (over && ALL_STAGES.includes(over.id as JourneyStage)) {
+      await onMove(active.id as string, over.id as JourneyStage)
+    }
+  }
+
+  const activeVol = volunteers.find(v => v.id === activeId)
+
+  return (
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+      {/* Main track */}
+      <div className="overflow-x-auto pb-3">
+        <div className="flex gap-3 min-w-max">
+          {STAGE_ORDER.map(stage => {
+            const cols = volunteers.filter(v => v.currentStage === stage)
+            return (
+              <div key={stage} className="w-44 sm:w-52 flex-shrink-0">
+                <div className="rounded-t-xl px-3 py-2 flex items-center justify-between" style={{ backgroundColor: `${accentColor}18` }}>
+                  <span className="text-xs font-semibold truncate" style={{ color: accentColor }}>{STAGE_LABELS[stage]}</span>
+                  <span className="text-xs font-bold ml-1 px-1.5 py-0.5 rounded-full bg-white/60" style={{ color: accentColor }}>{cols.length}</span>
+                </div>
+                <DroppableColumn stage={stage} isOver={overStage === stage}>
+                  {cols.map(v => <DraggableCard key={v.id} volunteer={v} />)}
+                  {cols.length === 0 && <p className="text-xs text-gray-300 text-center py-4">—</p>}
+                </DroppableColumn>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Off-track row */}
+      {volunteers.some(v => OFF_TRACK_STAGES.includes(v.currentStage)) && (
+        <div className="mt-3">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Fora da jornada</p>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {OFF_TRACK_STAGES.map(stage => {
+              const isAmber = stage === 'mudou_area'
+              const cols = volunteers.filter(v => v.currentStage === stage)
+              return (
+                <div key={stage} className="w-44 sm:w-52 flex-shrink-0">
+                  <div className={`rounded-t-xl px-3 py-2 flex items-center justify-between ${isAmber ? 'bg-amber-50' : 'bg-red-50'}`}>
+                    <span className={`text-xs font-semibold truncate ${isAmber ? 'text-amber-700' : 'text-red-600'}`}>{STAGE_LABELS[stage]}</span>
+                    <span className={`text-xs font-bold ml-1 px-1.5 py-0.5 rounded-full ${isAmber ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>{cols.length}</span>
+                  </div>
+                  <DroppableColumn stage={stage} isOver={overStage === stage} offTrack>
+                    {cols.map(v => <DraggableCard key={v.id} volunteer={v} />)}
+                    {cols.length === 0 && <p className="text-xs text-gray-300 text-center py-4">—</p>}
+                  </DroppableColumn>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      <DragOverlay>{activeVol ? <VolunteerCard volunteer={activeVol} /> : null}</DragOverlay>
+    </DndContext>
+  )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function MeuMinisterio() {
   usePageTitle('Meu Ministério')
@@ -461,6 +727,7 @@ export default function MeuMinisterio() {
   const [toast, setToast] = useState('')
   const [activeTab, setActiveTab] = useState<'overview' | 'manage'>('overview')
   const [subAreaFilter, setSubAreaFilter] = useState<string>('all')
+  const [coordView, setCoordView] = useState<'table' | 'kanban'>('table')
   const [showSubAreaModal, setShowSubAreaModal] = useState(false)
   const [showCoordModal, setShowCoordModal] = useState(false)
 
@@ -522,6 +789,20 @@ export default function MeuMinisterio() {
     showToast('Etapa avançada!')
   }
 
+  const moveToStage = async (volunteerId: string, targetStage: JourneyStage) => {
+    const vol = volunteers.find(v => v.id === volunteerId)
+    if (!vol || vol.currentStage === targetStage) return
+    const now = new Date().toISOString()
+    setVolunteers((prev: Volunteer[]) => prev.map(v =>
+      v.id !== volunteerId ? v : { ...v, currentStage: targetStage, lastContactDate: now, alertDays: 0, stageHistory: [...v.stageHistory, { stage: targetStage, date: now }] }
+    ))
+    await supabase.from('volunteers').update({ current_stage: targetStage, last_contact_date: now }).eq('id', volunteerId)
+    await supabase.from('stage_history').insert({ volunteer_id: volunteerId, stage: targetStage, date: now })
+    showToast('Etapa atualizada!')
+  }
+
+  const accentColor = ministry?.color ?? '#6366f1'
+
   const loading = volLoading || minLoading
 
   const roleBadge = isLeader
@@ -567,15 +848,15 @@ export default function MeuMinisterio() {
       </header>
 
       <main className="px-3 py-4 sm:px-4 lg:px-8 max-w-5xl mx-auto space-y-5">
-        {/* Title + tab switcher for leader */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-              Olá, {profile?.name?.split(' ')[0]}!
-            </h1>
-            <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>{panelTitle}</p>
-          </div>
-          {isLeader && (
+        {/* Title row — leaders only (coordinator has hero card) */}
+        {isLeader && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+                Olá, {profile?.name?.split(' ')[0]}!
+              </h1>
+              <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>{panelTitle}</p>
+            </div>
             <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
               <button
                 onClick={() => setActiveTab('overview')}
@@ -590,8 +871,8 @@ export default function MeuMinisterio() {
                 Gerenciar
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -599,22 +880,47 @@ export default function MeuMinisterio() {
           </div>
         ) : (
           <>
-            {/* ── OVERVIEW tab (leader) or full coordinator view ── */}
-            {(activeTab === 'overview' || isCoordinator) && (
-              <div className="space-y-6">
+            {/* ── COORDINATOR view ── */}
+            {isCoordinator && (
+              <div className="space-y-5">
+                {/* Hero */}
+                <CoordHero
+                  name={profile?.name ?? ''}
+                  subAreas={mySubAreas}
+                  ministry={ministry}
+                  volunteers={myVolunteers}
+                />
+
+                {/* KPIs row */}
                 <KPIs volunteers={myVolunteers} />
 
-                {/* Sub-area filter tabs */}
-                {((isLeader && ministry && ministry.subAreas.length > 0) || isCoordinator) && (
-                  <div className="flex gap-2 flex-wrap">
+                {/* Stage funnel */}
+                {myVolunteers.length > 0 && (
+                  <StageFunnel volunteers={myVolunteers} accentColor={accentColor} />
+                )}
+
+                {/* Multi sub-area cards */}
+                {mySubAreas.length > 1 && (
+                  <SubAreaCards
+                    subAreas={mySubAreas}
+                    volunteers={myVolunteers}
+                    accentColor={accentColor}
+                    filter={subAreaFilter}
+                    onFilter={f => setSubAreaFilter(f)}
+                  />
+                )}
+
+                {/* Filter pills + view toggle */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex gap-2 flex-wrap flex-1">
                     <button
                       onClick={() => setSubAreaFilter('all')}
                       className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${subAreaFilter === 'all' ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                      style={subAreaFilter === 'all' ? { backgroundColor: 'var(--accent)' } : {}}
+                      style={subAreaFilter === 'all' ? { backgroundColor: accentColor } : {}}
                     >
                       Todos ({myVolunteers.length})
                     </button>
-                    {isCoordinator && unassignedVolunteers.length > 0 && (
+                    {unassignedVolunteers.length > 0 && (
                       <button
                         onClick={() => setSubAreaFilter('unassigned')}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${subAreaFilter === 'unassigned' ? 'text-white' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}
@@ -623,10 +929,76 @@ export default function MeuMinisterio() {
                         Sem área ({unassignedVolunteers.length})
                       </button>
                     )}
-                    {(isLeader ? (ministry?.subAreas ?? []) : mySubAreas).map(sa => (
+                    {mySubAreas.map(sa => (
                       <button
                         key={sa.id}
-                        onClick={() => setSubAreaFilter(sa.name)}
+                        onClick={() => setSubAreaFilter(subAreaFilter === sa.name ? 'all' : sa.name)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${subAreaFilter === sa.name ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        style={subAreaFilter === sa.name ? { backgroundColor: accentColor } : {}}
+                      >
+                        {sa.name} ({myVolunteers.filter(v => v.subArea === sa.name).length})
+                      </button>
+                    ))}
+                  </div>
+                  {/* View toggle */}
+                  <div className="flex gap-1 bg-gray-100 rounded-xl p-1 flex-shrink-0 self-start sm:self-auto">
+                    <button
+                      onClick={() => setCoordView('table')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${coordView === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      <List size={13} /> Lista
+                    </button>
+                    <button
+                      onClick={() => setCoordView('kanban')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${coordView === 'kanban' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      <LayoutGrid size={13} /> Kanban
+                    </button>
+                  </div>
+                </div>
+
+                {/* Follow-up alerts */}
+                <FollowUpAlerts
+                  volunteers={displayedVolunteers}
+                  onMarkContacted={markContacted}
+                  onAdvanceStage={advanceStage}
+                />
+
+                {/* Main content */}
+                {coordView === 'kanban' ? (
+                  <CoordKanban
+                    volunteers={displayedVolunteers}
+                    onMove={moveToStage}
+                    accentColor={accentColor}
+                  />
+                ) : (
+                  <VolunteerTable
+                    volunteers={displayedVolunteers}
+                    onMarkContacted={markContacted}
+                    onAdvanceStage={advanceStage}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* ── LEADER overview tab ── */}
+            {isLeader && activeTab === 'overview' && (
+              <div className="space-y-5">
+                <KPIs volunteers={myVolunteers} />
+
+                {ministry && ministry.subAreas.length > 0 && (
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => setSubAreaFilter('all')}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${subAreaFilter === 'all' ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                      style={subAreaFilter === 'all' ? { backgroundColor: 'var(--accent)' } : {}}
+                    >
+                      Todas ({myVolunteers.length})
+                    </button>
+                    {ministry.subAreas.map(sa => (
+                      <button
+                        key={sa.id}
+                        onClick={() => setSubAreaFilter(subAreaFilter === sa.name ? 'all' : sa.name)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${subAreaFilter === sa.name ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                         style={subAreaFilter === sa.name ? { backgroundColor: 'var(--accent)' } : {}}
                       >
