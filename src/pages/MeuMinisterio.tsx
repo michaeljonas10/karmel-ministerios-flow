@@ -26,7 +26,7 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   )
 }
 
-// ─── Volunteer table ──────────────────────────────────────────────────────────
+// ─── Volunteer table / cards ─────────────────────────────────────────────────
 function VolunteerTable({
   volunteers,
   onMarkContacted,
@@ -44,22 +44,75 @@ function VolunteerTable({
     v.subArea.toLowerCase().includes(search.toLowerCase())
   )
 
+  const empty = (
+    <div className="text-center py-12 text-gray-400">
+      <Users size={32} className="mx-auto mb-2 opacity-50" />
+      <p className="text-sm">Nenhum voluntário encontrado</p>
+    </div>
+  )
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="font-semibold text-gray-800">Voluntários ({volunteers.length})</h2>
-        <div className="relative">
+      {/* Header row */}
+      <div className="flex items-center gap-3 mb-3">
+        <h2 className="font-semibold text-gray-800 flex-1 min-w-0 truncate">
+          Voluntários ({volunteers.length})
+        </h2>
+        <div className="relative flex-shrink-0">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Buscar..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-8 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-white"
+            className="pl-8 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-white w-36 sm:w-48"
           />
         </div>
       </div>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+
+      {/* ── Mobile: card list ── */}
+      <div className="sm:hidden space-y-2">
+        {filtered.length === 0 ? empty : filtered.map(v => {
+          const days = getDaysSinceLastContact(v)
+          const isLast = STAGE_ORDER.indexOf(v.currentStage) === STAGE_ORDER.length - 1
+          return (
+            <div key={v.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <button
+                  className="text-sm font-semibold text-gray-800 hover:text-indigo-600 text-left leading-tight"
+                  onClick={() => navigate(`/voluntario/${v.id}`)}
+                >
+                  {v.name}
+                </button>
+                <span className={`flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${days >= 14 ? 'bg-red-100 text-red-600' : days >= 7 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}`}>
+                  {days === 0 ? 'Hoje' : `${days}d`}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mb-3">
+                {v.subArea && (
+                  <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">
+                    {v.subArea}
+                  </span>
+                )}
+                <JourneyBadge stage={v.currentStage} size="sm" />
+              </div>
+              <div className="flex gap-2">
+                <WaButton phone={v.phone} name={v.name} onClick={() => onMarkContacted(v.id)} />
+                <button
+                  onClick={() => onAdvanceStage(v.id)}
+                  disabled={isLast}
+                  className="flex-1 flex items-center justify-center gap-1 text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-2 rounded-xl font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight size={12} /> Avançar etapa
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* ── Desktop: table ── */}
+      <div className="hidden sm:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
@@ -113,12 +166,7 @@ function VolunteerTable({
               })}
             </tbody>
           </table>
-          {filtered.length === 0 && (
-            <div className="text-center py-12 text-gray-400">
-              <Users size={32} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Nenhum voluntário encontrado</p>
-            </div>
-          )}
+          {filtered.length === 0 && empty}
         </div>
       </div>
     </div>
@@ -150,25 +198,27 @@ function FollowUpAlerts({
       <div className="space-y-2">
         {alerts.map(v => {
           const days = getDaysSinceLastContact(v)
+          const isLast = STAGE_ORDER.indexOf(v.currentStage) === STAGE_ORDER.length - 1
           return (
-            <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white rounded-xl px-4 py-3 border border-orange-200 gap-3">
-              <div>
+            <div key={v.id} className="bg-white rounded-xl px-4 py-3 border border-orange-200">
+              <div className="flex items-start justify-between gap-2 mb-2">
                 <button
-                  className="text-sm font-semibold text-gray-800 hover:text-indigo-600 text-left"
+                  className="text-sm font-semibold text-gray-800 hover:text-indigo-600 text-left leading-tight"
                   onClick={() => navigate(`/voluntario/${v.id}`)}
                 >
                   {v.name}
                 </button>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {v.subArea} · <span className="text-orange-600 font-medium">{days} dias sem contato</span>
-                </p>
+                <span className="flex-shrink-0 text-xs text-orange-600 font-medium whitespace-nowrap">{days}d sem contato</span>
               </div>
+              {v.subArea && (
+                <p className="text-xs text-gray-400 mb-2">{v.subArea}</p>
+              )}
               <div className="flex gap-2">
                 <WaButton phone={v.phone} name={v.name} onClick={() => onMarkContacted(v.id)} />
                 <button
                   onClick={() => onAdvanceStage(v.id)}
-                  className="flex items-center gap-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                  disabled={STAGE_ORDER.indexOf(v.currentStage) === STAGE_ORDER.length - 1}
+                  disabled={isLast}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-40"
                 >
                   <ChevronRight size={13} /> Avançar
                 </button>
@@ -488,17 +538,17 @@ export default function MeuMinisterio() {
     <div className="min-h-screen" style={{ backgroundColor: 'var(--body-bg)' }}>
       {/* Header */}
       <header
-        className="border-b px-4 lg:px-8 py-4 flex items-center justify-between"
+        className="border-b px-4 lg:px-8 py-3 flex items-center justify-between gap-3"
         style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--header-border)' }}
       >
-        <div className="flex items-center gap-3">
-          <img src="/pulse-logo.svg" alt="Pulse" className="w-8 h-8 rounded-lg" />
-          <div>
-            <p className="font-semibold text-sm" style={{ color: 'var(--text-secondary)' }}>Pulse</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Painel de Acesso</p>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <img src="/pulse-logo.svg" alt="Pulse" className="w-8 h-8 rounded-lg flex-shrink-0" />
+          <div className="min-w-0">
+            <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-secondary)' }}>Pulse</p>
+            <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>Painel de Acesso</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{profile?.name}</p>
             <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${roleBadge.cls}`}>
@@ -507,7 +557,7 @@ export default function MeuMinisterio() {
           </div>
           <button
             onClick={() => signOut().then(() => navigate('/login'))}
-            className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg transition-colors flex-shrink-0"
             style={{ color: 'var(--text-muted)' }}
           >
             <LogOut size={16} />
@@ -516,7 +566,7 @@ export default function MeuMinisterio() {
         </div>
       </header>
 
-      <main className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
+      <main className="px-3 py-4 sm:px-4 lg:px-8 max-w-5xl mx-auto space-y-5">
         {/* Title + tab switcher for leader */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
