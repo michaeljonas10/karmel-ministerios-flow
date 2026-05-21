@@ -43,25 +43,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    let profileChannel: ReturnType<typeof supabase.channel> | null = null
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) {
         fetchProfile(session.user.id).finally(() => setLoading(false))
+
+        // Subscribe to real-time updates for this user's profile row so that
+        // sub-area assignments (made by admins) are reflected immediately
+        // without requiring a re-login.
+        profileChannel = supabase
+          .channel(`my-profile-${session.user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'user_profiles',
+              filter: `id=eq.${session.user.id}`,
+            },
+            () => fetchProfile(session.user.id)
+          )
+          .subscribe()
       } else {
         setLoading(false)
       }
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null)
       if (session?.user) {
         fetchProfile(session.user.id)
+        if (event === 'SIGNED_IN') {
+          // fire-and-forget: SECURITY DEFINER fn faz o lookup do perfil internamente
+          supabase.rpc('log_user_login', {
+            p_user_id: session.user.id,
+            p_user_email: session.user.email ?? null,
+          }).then(({ error }) => {
+            if (error) console.warn('[login_log] erro ao registrar acesso:', error.message)
+          })
+        }
       } else {
         setProfile(null)
+        if (profileChannel) {
+          supabase.removeChannel(profileChannel)
+          profileChannel = null
+        }
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      if (profileChannel) supabase.removeChannel(profileChannel)
+    }
   }, [])
 
   const signIn = async (email: string, password: string) => {
