@@ -7,11 +7,13 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import type { ThemeId } from '../contexts/ThemeContext';
 import {
   Settings, Church, Link2, Users, Copy, Check, Plus, X, Pencil, Trash2, ChevronDown, ChevronUp,
-  Eye, EyeOff, UserPlus, ShieldCheck, User, Palette, Key,
+  Eye, EyeOff, UserPlus, ShieldCheck, User, Palette, Key, Bell, BellOff, BellRing,
   Camera, Music, Baby, Zap, Heart, Home, Star, Shield, BookOpen, Globe, Cross, Mic, Film, Radio, Tv, Headphones, Volume2,
   Car, Coffee, Megaphone, Flame, Waves, Gift, Monitor, Flower2, Utensils, Bus, Paintbrush, HandHeart, Scissors, Smile,
 } from 'lucide-react';
-import type { Ministry, SubArea } from '../types';
+import { usePushNotifications } from '../hooks/usePushNotifications';
+import type { Ministry, SubArea, JourneyStage } from '../types';
+import { STAGE_LABELS, STAGE_ORDER } from '../types';
 import type { UserProfile } from '../contexts/AuthContext';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -271,10 +273,11 @@ interface MinistryForm {
   icon: string;
   coordinators: string[];
   subAreas: SubArea[];
+  journeyStages: JourneyStage[]; // empty = usar fluxo completo
 }
 
 function emptyForm(): MinistryForm {
-  return { id: '', name: '', color: '#3b82f6', icon: 'Star', coordinators: [], subAreas: [] };
+  return { id: '', name: '', color: '#3b82f6', icon: 'Star', coordinators: [], subAreas: [], journeyStages: [] };
 }
 
 function MinistryModal({
@@ -314,7 +317,7 @@ function MinistryModal({
     const id = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
     setForm(p => ({
       ...p,
-      subAreas: [...p.subAreas, { id, name, coordinator: newSubCoord.trim() || '', volunteerCount: 0 }],
+      subAreas: [...p.subAreas, { id, name, coordinator: newSubCoord.trim() || '', coordinatorNames: [], volunteerCount: 0 }],
     }));
     setNewSub('');
     setNewSubCoord('');
@@ -322,6 +325,12 @@ function MinistryModal({
 
   const removeSub = (id: string) =>
     setForm(p => ({ ...p, subAreas: p.subAreas.filter(s => s.id !== id) }));
+
+  const updateSubName = (id: string, name: string) =>
+    setForm(p => ({
+      ...p,
+      subAreas: p.subAreas.map(s => s.id === id ? { ...s, name } : s),
+    }));
 
   const updateSubCoord = (id: string, coord: string) =>
     setForm(p => ({
@@ -432,20 +441,87 @@ function MinistryModal({
             </div>
           </div>
 
+          {/* Journey stages */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Etapas da Jornada</label>
+            <p className="text-xs text-gray-400 mb-3">
+              Desmarque as etapas que este ministério não usa. <span className="font-medium text-gray-500">Cadastrado</span> e <span className="font-medium text-gray-500">Estabelecido</span> são obrigatórios.
+            </p>
+            <div className="grid grid-cols-1 gap-1.5">
+              {STAGE_ORDER.map((stage) => {
+                const locked = stage === 'cadastrado' || stage === 'estabelecido';
+                const active = form.journeyStages.length === 0
+                  ? true // all selected when using default
+                  : form.journeyStages.includes(stage);
+                const toggleStage = () => {
+                  if (locked) return;
+                  setForm(p => {
+                    const current = p.journeyStages.length === 0 ? STAGE_ORDER : p.journeyStages;
+                    const next = current.includes(stage)
+                      ? current.filter(s => s !== stage)
+                      : [...current, stage].sort((a, b) => STAGE_ORDER.indexOf(a) - STAGE_ORDER.indexOf(b));
+                    // if all are selected, store empty (= default)
+                    return { ...p, journeyStages: next.length === STAGE_ORDER.length ? [] : next };
+                  });
+                };
+                return (
+                  <label key={stage} className={`flex items-center gap-3 px-3 py-2 rounded-lg border transition-colors cursor-pointer ${
+                    locked ? 'bg-gray-50 border-gray-100 cursor-default' :
+                    active ? 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100' :
+                    'bg-white border-gray-200 hover:bg-gray-50'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={toggleStage}
+                      disabled={locked}
+                      className="accent-indigo-600 w-4 h-4 flex-shrink-0"
+                    />
+                    <span className={`text-sm ${active ? 'text-gray-800 font-medium' : 'text-gray-400'}`}>
+                      {STAGE_LABELS[stage]}
+                    </span>
+                    {locked && <span className="ml-auto text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">fixo</span>}
+                  </label>
+                );
+              })}
+            </div>
+            {form.journeyStages.length > 0 && form.journeyStages.length < STAGE_ORDER.length && (
+              <p className="text-xs text-indigo-600 mt-2">
+                {form.journeyStages.length} de {STAGE_ORDER.length} etapas ativas
+              </p>
+            )}
+          </div>
+
           {/* Sub-areas */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Sub-Áreas</label>
             <div className="space-y-2 mb-3">
               {form.subAreas.map(s => (
-                <div key={s.id} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
-                  <span className="flex-1 text-sm text-gray-800">{s.name}</span>
-                  <input
-                    value={s.coordinator}
-                    onChange={e => updateSubCoord(s.id, e.target.value)}
-                    placeholder="Coordenador..."
-                    className="w-36 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                  />
-                  <button onClick={() => removeSub(s.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                <div key={s.id} className="flex items-start gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                  <div className="flex-1 min-w-0">
+                    <input
+                      value={s.name}
+                      onChange={e => updateSubName(s.id, e.target.value)}
+                      placeholder="Nome da sub-área..."
+                      className="w-full border border-gray-200 rounded-lg px-2.5 py-1 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white mb-1"
+                    />
+                    {s.coordinatorNames.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {s.coordinatorNames.map(n => (
+                          <span key={n} className="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{n}</span>
+                        ))}
+                        <span className="text-xs text-gray-400 italic self-center ml-1">via conta de usuário</span>
+                      </div>
+                    ) : (
+                      <input
+                        value={s.coordinator}
+                        onChange={e => updateSubCoord(s.id, e.target.value)}
+                        placeholder="Nome do coordenador..."
+                        className="w-full border border-gray-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+                      />
+                    )}
+                  </div>
+                  <button onClick={() => removeSub(s.id)} className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0 mt-0.5">
                     <X size={14} />
                   </button>
                 </div>
@@ -518,6 +594,7 @@ function TabMinisterios({ onToast }: { onToast: (msg: string) => void }) {
         icon: m.icon,
         coordinators: [...m.coordinators],
         subAreas: m.subAreas.map(s => ({ ...s })),
+        journeyStages: m.journeyStages ? [...m.journeyStages] : [],
       },
     });
   const closeModal = () => setModal(p => ({ ...p, open: false }));
@@ -538,27 +615,59 @@ function TabMinisterios({ onToast }: { onToast: (msg: string) => void }) {
       color: form.color,
       icon: form.icon,
       coordinators: form.coordinators,
+      journey_stages: form.journeyStages.length > 0 ? form.journeyStages : null,
     });
 
     if (mErr) { onToast('Erro ao salvar ministério'); setSaving(false); return; }
+
+    // Detect sub-area renames before deleting so we can cascade to volunteers
+    const prefix = id + '_';
+    const stripPfx = (s: string) => { let r = s; while (r.startsWith(prefix)) r = r.slice(prefix.length); return r; };
+    const originalMinistry = ministries.find(m => m.id === id);
+    const renames: { oldName: string; newName: string }[] = [];
+    if (originalMinistry) {
+      for (const newSub of form.subAreas) {
+        if (!newSub.name.trim()) continue;
+        const newBase = stripPfx(newSub.id);
+        const oldSub = originalMinistry.subAreas.find(os => stripPfx(os.id) === newBase);
+        if (oldSub && oldSub.name !== newSub.name.trim()) {
+          renames.push({ oldName: oldSub.name, newName: newSub.name.trim() });
+        }
+      }
+    }
 
     // Replace sub_areas: delete existing then insert new
     await supabase.from('sub_areas').delete().eq('ministry_id', id);
     if (form.subAreas.length > 0) {
       await supabase.from('sub_areas').insert(
-        form.subAreas.map(s => ({
-          id: `${id}_${s.id}`,
-          ministry_id: id,
-          name: s.name,
-          coordinator: s.coordinator || '',
-        }))
+        form.subAreas.filter(s => s.name.trim()).map(s => {
+          // Strip repeated ministry prefix (fixes double/triple-prefix bug on re-save)
+          let baseId = s.id || s.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+          while (baseId.startsWith(prefix)) baseId = baseId.slice(prefix.length);
+          return {
+            id: `${id}_${baseId}`,
+            ministry_id: id,
+            name: s.name.trim(),
+            coordinator: s.coordinator || '',
+          };
+        })
       );
     }
 
+    // Cascade renames to volunteers (sub_area field stores display name)
+    for (const { oldName, newName } of renames) {
+      await supabase
+        .from('volunteers')
+        .update({ sub_area: newName })
+        .eq('ministry_id', id)
+        .eq('sub_area', oldName);
+    }
+
+    await refetch();
     setSaving(false);
     closeModal();
-    await refetch();
-    onToast(form.id ? 'Ministério atualizado!' : 'Ministério criado com sucesso!');
+    const renamed = renames.length > 0 ? ` (${renames.length} sub-área${renames.length > 1 ? 's' : ''} renomeada${renames.length > 1 ? 's' : ''})` : '';
+    onToast(form.id ? `Ministério atualizado!${renamed}` : 'Ministério criado com sucesso!');
   };
 
   const deleteMinistry = async (id: string, name: string) => {
@@ -596,7 +705,7 @@ function TabMinisterios({ onToast }: { onToast: (msg: string) => void }) {
               <div className="flex-1 min-w-0">
                 <span className="font-semibold text-gray-800">{ministry.name}</span>
                 <span className="ml-2 text-xs text-gray-400">
-                  {ministry.subAreas.length} sub-área{ministry.subAreas.length !== 1 ? 's' : ''} · {ministry.coordinators.length} coord.
+                  {ministry.subAreas.length} sub-área{ministry.subAreas.length !== 1 ? 's' : ''} · {new Set(ministry.subAreas.flatMap(sa => sa.coordinatorNames)).size} coord.
                 </span>
               </div>
               <div className="flex items-center gap-1">
@@ -628,22 +737,7 @@ function TabMinisterios({ onToast }: { onToast: (msg: string) => void }) {
             {/* Expanded details */}
             {expanded[ministry.id] && (
               <div className="border-t border-gray-100 px-4 py-3 bg-gray-50 space-y-3">
-                {/* Coordinators */}
-                <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Coordenadores</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ministry.coordinators.length === 0
-                      ? <span className="text-xs text-gray-400 italic">Nenhum coordenador</span>
-                      : ministry.coordinators.map(c => (
-                        <span key={c} className="bg-white border border-gray-200 text-gray-700 text-xs px-2.5 py-1 rounded-full">
-                          {c}
-                        </span>
-                      ))
-                    }
-                  </div>
-                </div>
-
-                {/* Sub-areas */}
+                {/* Sub-areas with coordinators */}
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Sub-Áreas</p>
                   {ministry.subAreas.length === 0
@@ -653,7 +747,16 @@ function TabMinisterios({ onToast }: { onToast: (msg: string) => void }) {
                         {ministry.subAreas.map(s => (
                           <div key={s.id} className="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
                             <p className="text-xs font-medium text-gray-800">{s.name}</p>
-                            {s.coordinator && <p className="text-xs text-gray-400">{s.coordinator}</p>}
+                            {s.coordinatorNames.length > 0
+                              ? (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {s.coordinatorNames.map(n => (
+                                    <span key={n} className="bg-indigo-50 text-indigo-700 text-xs px-1.5 py-0.5 rounded-full">{n}</span>
+                                  ))}
+                                </div>
+                              )
+                              : <p className="text-xs text-gray-400 italic mt-0.5">Sem coordenador</p>
+                            }
                           </div>
                         ))}
                       </div>
@@ -687,7 +790,7 @@ function TabMinisterios({ onToast }: { onToast: (msg: string) => void }) {
 
 // ─── Tab 4 — Usuários ────────────────────────────────────────────────────────
 function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
-  const { ministries } = useMinistries();
+  const { ministries, refetch: refetchMinistries } = useMinistries();
   const { isSuperAdmin, profile: myProfile } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -713,7 +816,20 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
     setLoading(false);
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    // Ensure ministries are fresh when this tab mounts
+    refetchMinistries();
+    fetchUsers();
+
+    const channel = supabase
+      .channel('user-profiles-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_profiles' }, fetchUsers)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ministries' }, refetchMinistries)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sub_areas' }, refetchMinistries)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const openModal = () => {
     setEditTarget(null);
@@ -724,7 +840,29 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
 
   const openEdit = (u: UserProfile) => {
     setEditTarget(u);
-    setForm({ name: u.name, email: u.email, password: '', role: u.role, ministry_id: u.ministry_id ?? '', sub_areas: u.sub_areas ?? [] });
+
+    // Normalize stored sub_area IDs to the canonical IDs currently in the DB.
+    // Legacy records may carry double-prefixed IDs (e.g. "com_com_foto") that
+    // won't match the current "com_foto" keys → checkboxes appeared unchecked.
+    const userMinistry = ministries.find(m => m.id === (u.ministry_id ?? ''));
+    const prefix = (u.ministry_id ?? '') + '_';
+    const stripPrefix = (id: string) => {
+      let s = id;
+      while (s.startsWith(prefix)) s = s.slice(prefix.length);
+      return s;
+    };
+    const normalizedSubAreas = [...new Set(
+      (u.sub_areas ?? []).map(storedId => {
+        // Exact match first
+        if (userMinistry?.subAreas.find(sa => sa.id === storedId)) return storedId;
+        // Fuzzy match stripping repeated prefix from both sides
+        const storedBase = stripPrefix(storedId);
+        const matched = userMinistry?.subAreas.find(sa => stripPrefix(sa.id) === storedBase);
+        return matched ? matched.id : storedId; // use canonical or keep as-is
+      })
+    )];
+
+    setForm({ name: u.name, email: u.email, password: '', role: u.role, ministry_id: u.ministry_id ?? '', sub_areas: normalizedSubAreas });
     setFormError('');
     setModalOpen(true);
   };
@@ -765,8 +903,30 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
     if (!res.ok || json.error) {
       setFormError(json.error || 'Erro ao criar usuário.');
     } else {
+      // Cascade: assign coordinator name to volunteers in their sub-areas
+      const newName = form.name.trim();
+      const ministryId = form.ministry_id;
+      if (ministryId && form.role === 'coordinator' && form.sub_areas.length > 0) {
+        const ministry = ministries.find(m => m.id === ministryId);
+        const prefix = ministryId + '_';
+        const stripPfx = (s: string) => { let r = s; while (r.startsWith(prefix)) r = r.slice(prefix.length); return r; };
+        const subAreaNames = form.sub_areas
+          .map(id => {
+            const exact = ministry?.subAreas.find(sa => sa.id === id);
+            if (exact) return exact.name;
+            const base = stripPfx(id);
+            return ministry?.subAreas.find(sa => stripPfx(sa.id) === base)?.name ?? null;
+          })
+          .filter(Boolean) as string[];
+        for (const subAreaName of subAreaNames) {
+          await supabase.from('volunteers')
+            .update({ coordinator: newName })
+            .eq('ministry_id', ministryId)
+            .eq('sub_area', subAreaName);
+        }
+      }
       setModalOpen(false);
-      await fetchUsers();
+      await Promise.all([fetchUsers(), refetchMinistries()]);
       onToast(`${form.role === 'admin' ? 'Admin' : form.role === 'ministry_leader' ? 'Líder' : 'Coordenador'} "${form.name}" criado com sucesso!`);
     }
   };
@@ -776,13 +936,63 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
     if (!form.name.trim()) { setFormError('Nome obrigatório.'); return; }
     setSaving(true);
     setFormError('');
-    const updates: Record<string, unknown> = { name: form.name.trim(), ministry_id: form.ministry_id || null, sub_areas: form.sub_areas };
-    if (isSuperAdmin) updates.role = form.role;
-    const { error } = await supabase.from('user_profiles').update(updates).eq('id', editTarget.id);
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(
+      'https://fzbxzcwopgwsojxmckpa.supabase.co/functions/v1/create-coordinator',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          editUserId: editTarget.id,
+          name: form.name.trim(),
+          role: form.role,
+          ministry_id: form.ministry_id || null,
+          sub_areas: form.sub_areas,
+        }),
+      }
+    );
+    const json = await res.json();
     setSaving(false);
-    if (error) { setFormError(error.message); return; }
+    if (!res.ok || json.error) { setFormError(json.error || 'Erro ao atualizar usuário.'); return; }
+
+    // ── Cascade coordinator changes to volunteer records ─────────────────────
+    const newName = form.name.trim();
+    const ministryId = form.ministry_id || editTarget.ministry_id;
+    if (ministryId) {
+      const ministry = ministries.find(m => m.id === ministryId);
+      const prefix = ministryId + '_';
+      const stripPfx = (s: string) => { let r = s; while (r.startsWith(prefix)) r = r.slice(prefix.length); return r; };
+
+      // 1. Rename: update volunteers still carrying the old coordinator name
+      if (newName !== editTarget.name && editTarget.name) {
+        await supabase.from('volunteers')
+          .update({ coordinator: newName })
+          .eq('ministry_id', ministryId)
+          .eq('coordinator', editTarget.name);
+      }
+
+      // 2. Sub-area assignment: for every sub-area this coordinator NOW manages,
+      //    set their name on all volunteers in that sub-area so the display is current.
+      const newSubAreaNames = form.sub_areas
+        .map(id => {
+          const exact = ministry?.subAreas.find(sa => sa.id === id);
+          if (exact) return exact.name;
+          const base = stripPfx(id);
+          return ministry?.subAreas.find(sa => stripPfx(sa.id) === base)?.name ?? null;
+        })
+        .filter(Boolean) as string[];
+
+      for (const subAreaName of newSubAreaNames) {
+        await supabase.from('volunteers')
+          .update({ coordinator: newName })
+          .eq('ministry_id', ministryId)
+          .eq('sub_area', subAreaName);
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     setModalOpen(false);
-    await fetchUsers();
+    await Promise.all([fetchUsers(), refetchMinistries()]);
     onToast('Usuário atualizado.');
   };
 
@@ -838,6 +1048,27 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
     return ministries.find(m => m.id === id)?.name ?? id;
   };
 
+  const getSubAreaNames = (ministryId: string | null, subAreaIds: string[]) => {
+    if (!ministryId || !subAreaIds?.length) return [];
+    const ministry = ministries.find(m => m.id === ministryId);
+    if (!ministry) return [];
+    const prefix = ministryId + '_';
+    const stripPfx = (s: string) => { let r = s; while (r.startsWith(prefix)) r = r.slice(prefix.length); return r; };
+    const names = subAreaIds.map(id => {
+      // Exact match
+      const exact = ministry.subAreas.find(sa => sa.id === id);
+      if (exact) return exact.name;
+      // Strip repeated ministry prefix to get base slug (handles double/triple-prefix bug)
+      const base = stripPfx(id);
+      const byBase = ministry.subAreas.find(sa => stripPfx(sa.id) === base);
+      if (byBase) return byBase.name;
+      // Humanize last segment as final fallback
+      return base.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    });
+    // Deduplicate: different IDs may resolve to the same sub-area name (double-prefix legacy)
+    return [...new Set(names)];
+  };
+
   const roleLabel = (role: string) => role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : role === 'ministry_leader' ? 'Líder' : 'Coordenador';
 
   if (loading) return <div className="p-8 text-gray-400 text-sm">Carregando...</div>;
@@ -864,6 +1095,7 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                 <th className="text-left px-5 py-3">Email</th>
                 <th className="text-left px-5 py-3">Perfil</th>
                 <th className="text-left px-5 py-3">Ministério</th>
+                <th className="text-left px-5 py-3">Sub-áreas</th>
                 <th className="text-left px-5 py-3"></th>
               </tr>
             </thead>
@@ -900,6 +1132,19 @@ function TabUsuarios({ onToast }: { onToast: (msg: string) => void }) {
                   </td>
                   <td className="px-5 py-3.5">
                     <span className="text-sm text-gray-600">{getMinistryName(u.ministry_id)}</span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {(() => {
+                      const names = getSubAreaNames(u.ministry_id, u.sub_areas ?? []);
+                      if (!names.length) return <span className="text-xs text-gray-300">—</span>;
+                      return (
+                        <div className="flex flex-wrap gap-1">
+                          {names.map(n => (
+                            <span key={n} className="bg-indigo-50 text-indigo-700 text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap">{n}</span>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -1277,26 +1522,221 @@ function TabAutomacoes({ ministries, onToast }: { ministries: import('../types')
   );
 }
 
-type Tab = 'igreja' | 'link' | 'ministerios' | 'usuarios' | 'aparencia' | 'automacoes';
+// ─── Tab Acessos ─────────────────────────────────────────────────────────────
+interface LoginEntry {
+  id: string;
+  user_name: string | null;
+  user_email: string | null;
+  user_role: string | null;
+  logged_in_at: string;
+}
 
-const ALL_TABS: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
+function TabAcessos() {
+  const [logs, setLogs] = useState<LoginEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    supabase
+      .from('login_log')
+      .select('*')
+      .order('logged_in_at', { ascending: false })
+      .limit(200)
+      .then(({ data }) => {
+        if (data) setLogs(data as LoginEntry[]);
+        setLoading(false);
+      });
+  }, []);
+
+  const roleLabel = (role: string | null) => {
+    if (!role) return '—';
+    return role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : role === 'ministry_leader' ? 'Líder' : 'Coordenador';
+  };
+
+  const roleBadge = (role: string | null) => {
+    if (role === 'super_admin') return 'bg-violet-100 text-violet-700';
+    if (role === 'admin') return 'bg-indigo-100 text-indigo-700';
+    if (role === 'ministry_leader') return 'bg-amber-100 text-amber-700';
+    return 'bg-gray-100 text-gray-600';
+  };
+
+  const filtered = logs.filter(l => {
+    const q = search.toLowerCase();
+    return !q || (l.user_name ?? '').toLowerCase().includes(q) || (l.user_email ?? '').toLowerCase().includes(q);
+  });
+
+  const formatDateTime = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  if (loading) return <div className="p-8 text-gray-400 text-sm">Carregando...</div>;
+
+  return (
+    <div className="max-w-3xl space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">{logs.length} acesso{logs.length !== 1 ? 's' : ''} registrado{logs.length !== 1 ? 's' : ''}</p>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar por nome ou e-mail..."
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr className="text-xs text-gray-400 uppercase tracking-wider">
+                <th className="text-left px-5 py-3">Usuário</th>
+                <th className="text-left px-5 py-3">E-mail</th>
+                <th className="text-left px-5 py-3">Perfil</th>
+                <th className="text-left px-5 py-3">Data e Hora</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map(log => (
+                <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-5 py-3.5">
+                    <span className="text-sm font-medium text-gray-800">{log.user_name || '—'}</span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className="text-sm text-gray-500">{log.user_email || '—'}</span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${roleBadge(log.user_role)}`}>
+                      {roleLabel(log.user_role)}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className="text-sm text-gray-600 tabular-nums">{formatDateTime(log.logged_in_at)}</span>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="text-center py-10 text-gray-400 text-sm">
+                    {search ? 'Nenhum resultado encontrado.' : 'Nenhum acesso registrado ainda.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab Notificações ─────────────────────────────────────────────────────────
+function TabNotificacoes() {
+  const { profile } = useAuth();
+  const { state, subscribe, unsubscribe } = usePushNotifications(profile?.id);
+
+  return (
+    <div className="max-w-xl space-y-6">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-start gap-4">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+            state === 'subscribed' ? 'bg-indigo-100' : 'bg-gray-100'
+          }`}>
+            {state === 'subscribed'
+              ? <BellRing size={22} className="text-indigo-600" />
+              : <Bell size={22} className="text-gray-400" />
+            }
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-gray-900 mb-0.5">Notificações Push</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Receba alertas sobre voluntários aguardando acompanhamento e outros eventos importantes.
+            </p>
+
+            {state === 'unsupported' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+                Seu navegador não suporta notificações push.
+              </div>
+            )}
+
+            {state === 'denied' && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-800">
+                Notificações bloqueadas. Acesse as configurações do navegador para reativar.
+              </div>
+            )}
+
+            {state === 'loading' && (
+              <div className="text-sm text-gray-400">Verificando...</div>
+            )}
+
+            {(state === 'subscribed' || state === 'unsubscribed') && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={state === 'subscribed' ? unsubscribe : subscribe}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    state === 'subscribed'
+                      ? 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                  }`}
+                >
+                  {state === 'subscribed' ? <BellOff size={15} /> : <Bell size={15} />}
+                  {state === 'subscribed' ? 'Desativar notificações' : 'Ativar notificações'}
+                </button>
+                {state === 'subscribed' && (
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-indigo-600">
+                    <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                    Ativas neste dispositivo
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5">
+        <h4 className="text-sm font-semibold text-gray-700 mb-3">Quando você será notificado</h4>
+        <ul className="space-y-2 text-sm text-gray-600">
+          <li className="flex items-start gap-2">
+            <Check size={15} className="text-green-500 flex-shrink-0 mt-0.5" />
+            Voluntários aguardando contato há 7+ dias
+          </li>
+          <li className="flex items-start gap-2">
+            <Check size={15} className="text-green-500 flex-shrink-0 mt-0.5" />
+            Novos cadastros no seu ministério
+          </li>
+        </ul>
+        <p className="text-xs text-gray-400 mt-3">
+          As notificações são enviadas uma vez por dia, apenas se houver itens pendentes.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+type Tab = 'igreja' | 'link' | 'ministerios' | 'usuarios' | 'aparencia' | 'automacoes' | 'notificacoes' | 'acessos';
+
+const ALL_TABS: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean; superAdminOnly?: boolean }[] = [
   { id: 'igreja', label: 'Igreja', icon: <Church size={16} /> },
   { id: 'link', label: 'Link de Cadastro', icon: <Link2 size={16} /> },
   { id: 'ministerios', label: 'Ministérios', icon: <Users size={16} /> },
   { id: 'usuarios', label: 'Usuários', icon: <UserPlus size={16} />, adminOnly: true },
   { id: 'aparencia', label: 'Aparência', icon: <Palette size={16} /> },
   { id: 'automacoes', label: 'Automações', icon: <Zap size={16} />, adminOnly: true },
+  { id: 'notificacoes', label: 'Notificações', icon: <Bell size={16} /> },
+  { id: 'acessos', label: 'Acessos', icon: <ShieldCheck size={16} />, superAdminOnly: true },
 ];
 
 export default function Configuracoes() {
   usePageTitle('Configurações')
-  const { isAdmin } = useAuth();
+  const { isAdmin, isSuperAdmin } = useAuth();
   const { ministries } = useMinistries();
   const [activeTab, setActiveTab] = useState<Tab>('igreja');
   const [toast, setToast] = useState('');
 
   const showToast = (msg: string) => setToast(msg);
-  const TABS = ALL_TABS.filter(t => !t.adminOnly || isAdmin);
+  const TABS = ALL_TABS.filter(t =>
+    (!t.adminOnly || isAdmin) && (!t.superAdminOnly || isSuperAdmin)
+  );
 
   return (
     <div className="p-4 lg:p-6 max-w-4xl mx-auto">
@@ -1317,7 +1757,7 @@ export default function Configuracoes() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as Tab)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all flex-1 justify-center
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0
               ${activeTab === tab.id
                 ? 'bg-white text-indigo-700 shadow-sm'
                 : 'text-gray-600 hover:text-gray-800'
@@ -1337,6 +1777,8 @@ export default function Configuracoes() {
         {activeTab === 'usuarios' && isAdmin && <TabUsuarios onToast={showToast} />}
         {activeTab === 'aparencia' && <TabAparencia />}
         {activeTab === 'automacoes' && isAdmin && <TabAutomacoes ministries={ministries} onToast={showToast} />}
+        {activeTab === 'notificacoes' && <TabNotificacoes />}
+        {activeTab === 'acessos' && isSuperAdmin && <TabAcessos />}
       </div>
 
       {toast && <Toast message={toast} onClose={() => setToast('')} />}
