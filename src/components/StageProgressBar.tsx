@@ -4,15 +4,18 @@ import { Check } from 'lucide-react';
 
 interface StageProgressBarProps {
   currentStage: JourneyStage;
+  stageOrder?: JourneyStage[];
 }
 
-export default function StageProgressBar({ currentStage }: StageProgressBarProps) {
-  const currentIdx = STAGE_ORDER.indexOf(currentStage);
+export default function StageProgressBar({ currentStage, stageOrder = STAGE_ORDER }: StageProgressBarProps) {
+  // If the volunteer is on a stage not in this ministry's flow, fall back to showing full order
+  const order = stageOrder.includes(currentStage) ? stageOrder : STAGE_ORDER;
+  const currentIdx = order.indexOf(currentStage);
 
   return (
     <div className="w-full overflow-x-hidden">
       <div className="flex items-center">
-        {STAGE_ORDER.map((stage, idx) => {
+        {order.map((stage, idx) => {
           const isCompleted = idx < currentIdx;
           const isCurrent = idx === currentIdx;
           const isPending = idx > currentIdx;
@@ -40,7 +43,7 @@ export default function StageProgressBar({ currentStage }: StageProgressBarProps
                   {STAGE_LABELS[stage]}
                 </span>
               </div>
-              {idx < STAGE_ORDER.length - 1 && (
+              {idx < order.length - 1 && (
                 <div
                   className={`h-0.5 flex-1 mx-0.5 sm:mx-1 rounded min-w-0
                     ${idx < currentIdx ? 'bg-indigo-600' : 'bg-gray-200'}

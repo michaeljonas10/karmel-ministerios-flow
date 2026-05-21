@@ -8,14 +8,14 @@ const WA_ICON = (
 
 interface WaButtonProps {
   phone: string | undefined | null
-  name?: string
+  message?: string
   size?: 'sm' | 'md'
   onClick?: () => void
 }
 
-export default function WaButton({ phone, name, size = 'sm', onClick }: WaButtonProps) {
+export default function WaButton({ phone, message, size = 'sm', onClick }: WaButtonProps) {
   const hasPhone = !!phone?.trim()
-  const url = hasPhone ? whatsappUrl(phone!, name) : undefined
+  const url = hasPhone ? whatsappUrl(phone!, message) : undefined
 
   const cls = size === 'md'
     ? 'flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl transition-colors'

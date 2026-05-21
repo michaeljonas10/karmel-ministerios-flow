@@ -38,15 +38,23 @@ export const WA_TEMPLATES: Partial<Record<JourneyStage, string>> = {
     'Oi, {nome}! Tudo bem? Faz um tempinho que não temos notícias suas e queríamos saber como você está. 😊 Se puder, nos dá um retorno — sua presença faz muita falta!',
 };
 
+/**
+ * Builds a WhatsApp message template for the given stage.
+ *
+ * @param senderName - Name of the logged-in user sending the message.
+ *   Falls back to volunteer.coordinator only if not provided (legacy paths).
+ */
 export function buildTemplate(
   stage: JourneyStage,
   volunteer: { name: string; coordinator: string; subArea: string },
-  ministryName: string
+  ministryName: string,
+  senderName?: string
 ): string {
   const tpl = WA_TEMPLATES[stage] ?? 'Olá, {nome}! Tudo bem? Passando para manter contato. 😊';
+  const coordName = senderName?.trim() || volunteer.coordinator || '';
   return tpl
     .replace(/\{nome\}/g, volunteer.name)
-    .replace(/\{coordenador\}/g, volunteer.coordinator)
+    .replace(/\{coordenador\}/g, coordName)
     .replace(/\{subArea\}/g, volunteer.subArea)
     .replace(/\{ministerio\}/g, ministryName);
 }

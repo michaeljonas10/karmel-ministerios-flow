@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { MinistriesProvider } from './contexts/MinistriesContext';
+import { VolunteersProvider } from './contexts/VolunteersContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import MinistryPanel from './pages/MinistryPanel';
@@ -17,6 +18,7 @@ import EsqueciSenha from './pages/EsqueciSenha';
 import RedefinirSenha from './pages/RedefinirSenha';
 import Ajuda from './pages/Ajuda';
 import Suporte from './pages/Suporte';
+import GlobalSearch from './components/GlobalSearch';
 
 function LoadingScreen() {
   return (
@@ -152,7 +154,10 @@ function App() {
       <AuthProvider>
         <ThemeProvider>
           <MinistriesProvider>
-            <AppRoutes />
+            <VolunteersProvider>
+              <GlobalSearch />
+              <AppRoutes />
+            </VolunteersProvider>
           </MinistriesProvider>
         </ThemeProvider>
       </AuthProvider>

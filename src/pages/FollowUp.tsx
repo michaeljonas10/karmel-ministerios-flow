@@ -4,9 +4,11 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { Search, Filter, ChevronRight, ChevronLeft, CheckCircle, Plus, ShieldCheck, UserX, RefreshCw } from 'lucide-react';
 import { getDaysSinceLastContact } from '../data/volunteers';
 import { useMinistries } from '../contexts/MinistriesContext';
+import { useAuth } from '../contexts/AuthContext';
 import WaButton from '../components/WaButton';
+import { buildTemplate } from '../data/waTemplates';
 import type { Volunteer } from '../types';
-import { STAGE_ORDER } from '../types';
+import { getMinistryStages } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
 import { useVolunteers } from '../hooks/useVolunteers';
 import { supabase } from '../lib/supabase';
@@ -32,6 +34,7 @@ function getDaysBadge(days: number): string {
 export default function FollowUp() {
   usePageTitle('Follow-up')
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const { volunteers, loading, setVolunteers } = useVolunteers();
   const { ministries } = useMinistries();
   const [search, setSearch] = useState('');
@@ -61,9 +64,10 @@ export default function FollowUp() {
   async function advanceStage(id: string) {
     const volunteer = volunteers.find(v => v.id === id);
     if (!volunteer) return;
-    const currentIdx = STAGE_ORDER.indexOf(volunteer.currentStage);
-    if (currentIdx === STAGE_ORDER.length - 1) return;
-    const nextStage = STAGE_ORDER[currentIdx + 1];
+    const stageOrder = getMinistryStages(ministries.find(m => m.id === volunteer.ministryId));
+    const currentIdx = stageOrder.indexOf(volunteer.currentStage);
+    if (currentIdx === stageOrder.length - 1) return;
+    const nextStage = stageOrder[currentIdx + 1];
     const now = new Date().toISOString();
 
     setVolunteers((prev: Volunteer[]) => prev.map(v => {
@@ -85,9 +89,10 @@ export default function FollowUp() {
   async function retreatStage(id: string) {
     const volunteer = volunteers.find(v => v.id === id);
     if (!volunteer) return;
-    const currentIdx = STAGE_ORDER.indexOf(volunteer.currentStage);
+    const stageOrder = getMinistryStages(ministries.find(m => m.id === volunteer.ministryId));
+    const currentIdx = stageOrder.indexOf(volunteer.currentStage);
     if (currentIdx === 0) return;
-    const prevStage = STAGE_ORDER[currentIdx - 1];
+    const prevStage = stageOrder[currentIdx - 1];
     const now = new Date().toISOString();
 
     setVolunteers((prev: Volunteer[]) => prev.map(v => {
@@ -244,7 +249,7 @@ export default function FollowUp() {
                     <p className="text-xs font-semibold text-purple-600 mt-0.5">{days} dias sem check-in</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <WaButton phone={v.phone} name={v.name} size="sm" onClick={() => v.phone && confirmActive(v.id)} />
+                    <WaButton phone={v.phone} message={buildTemplate(v.currentStage, v, ministry?.name ?? '', profile?.name)} size="sm" onClick={() => v.phone && confirmActive(v.id)} />
                     <button
                       onClick={() => confirmActive(v.id)}
                       className="flex items-center gap-1.5 text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors"
@@ -415,7 +420,7 @@ export default function FollowUp() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <WaButton phone={v.phone} name={v.name} onClick={() => v.phone && markContacted(v.id)} />
+                        <WaButton phone={v.phone} message={buildTemplate(v.currentStage, v, ministry?.name ?? '', profile?.name)} onClick={() => v.phone && markContacted(v.id)} />
                         <button
                           className="flex items-center gap-1 text-xs bg-gray-50 hover:bg-gray-100 text-gray-500 px-2 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-30"
                           onClick={() => retreatStage(v.id)}

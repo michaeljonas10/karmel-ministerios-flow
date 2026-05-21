@@ -3,12 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import {
   ArrowLeft, Mail, Calendar, User, ChevronRight, ChevronLeft,
-  CheckCircle, MessageSquare, Clock, Pencil, X, Save, Copy, Cake, PhoneCall,
+  CheckCircle, MessageSquare, Clock, Pencil, X, Save, Copy, Cake, PhoneCall, Compass, Archive, History,
 } from 'lucide-react';
 import WaButton from '../components/WaButton';
 import { getDaysSinceLastContact } from '../data/volunteers';
 import { useMinistries } from '../contexts/MinistriesContext';
-import { STAGE_LABELS, STAGE_ORDER, OFF_TRACK_STAGES } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { STAGE_LABELS, STAGE_ORDER, OFF_TRACK_STAGES, HOW_FOUND_OPTIONS, getMinistryStages } from '../types';
 import type { Volunteer, JourneyStage } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
 import StageProgressBar from '../components/StageProgressBar';
@@ -24,6 +25,7 @@ function formatDate(dateStr: string): string {
 export default function VolunteerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const { ministries } = useMinistries();
   const [volunteer, setVolunteer] = useState<Volunteer | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,13 +33,17 @@ export default function VolunteerDetail() {
   const [noteInput, setNoteInput] = useState('');
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
-  const [editField, setEditField] = useState<'phone' | 'email' | 'name' | 'subArea' | 'birthday' | null>(null);
+  const [editField, setEditField] = useState<'phone' | 'email' | 'name' | 'subArea' | 'birthday' | 'howFound' | null>(null);
   const [editValue, setEditValue] = useState('');
   const [templateCopied, setTemplateCopied] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [editLog, setEditLog] = useState<{ field: string; old_value: string | null; new_value: string | null; changed_by: string | null; changed_at: string }[]>([]);
+  const [showEditLog, setShowEditLog] = useState(false);
 
   useEffect(() => {
+    if (!id) return;
+
     async function fetchVolunteer() {
-      if (!id) return;
       const { data, error } = await supabase
         .from('volunteers')
         .select('*, stage_history(*)')
@@ -64,12 +70,42 @@ export default function VolunteerDetail() {
           lastContactDate: data.last_contact_date,
           alertDays: data.alert_days,
           birthday: data.birthday ?? undefined,
+          howFound: data.how_found ?? undefined,
+          participatesGc: data.participates_gc ?? undefined,
           contactAttempts: data.contact_attempts ?? 0,
         });
       }
       setLoading(false);
     }
+
+    async function fetchEditLog() {
+      const { data } = await supabase
+        .from('volunteer_edit_log')
+        .select('field, old_value, new_value, changed_by, changed_at')
+        .eq('volunteer_id', id)
+        .order('changed_at', { ascending: false })
+        .limit(50);
+      if (data) setEditLog(data);
+    }
+
     fetchVolunteer();
+    fetchEditLog();
+
+    const channel = supabase
+      .channel(`volunteer-detail-${id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'volunteers', filter: `id=eq.${id}` },
+        fetchVolunteer
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'stage_history', filter: `volunteer_id=eq.${id}` },
+        fetchVolunteer
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [id]);
 
   if (loading) {
@@ -95,10 +131,11 @@ export default function VolunteerDetail() {
   }
 
   const ministry = ministries.find(m => m.id === volunteer.ministryId);
+  const stageOrder = getMinistryStages(ministry);
   const days = getDaysSinceLastContact(volunteer);
   const isOffTrack = OFF_TRACK_STAGES.includes(volunteer.currentStage);
-  const currentIdx = isOffTrack ? -1 : STAGE_ORDER.indexOf(volunteer.currentStage);
-  const canAdvance = !isOffTrack && currentIdx < STAGE_ORDER.length - 1;
+  const currentIdx = isOffTrack ? -1 : stageOrder.indexOf(volunteer.currentStage);
+  const canAdvance = !isOffTrack && currentIdx < stageOrder.length - 1;
   const canRetreat = !isOffTrack && currentIdx > 0;
 
   function showToast(msg: string) {
@@ -123,7 +160,7 @@ export default function VolunteerDetail() {
 
   function copyTemplate() {
     if (!volunteer || !ministry) return;
-    const msg = buildTemplate(volunteer.currentStage, volunteer, ministry.name);
+    const msg = buildTemplate(volunteer.currentStage, volunteer, ministry.name, profile?.name);
     navigator.clipboard.writeText(msg).then(() => {
       setTemplateCopied(true);
       setTimeout(() => setTemplateCopied(false), 2000);
@@ -132,7 +169,7 @@ export default function VolunteerDetail() {
 
   async function advanceStage() {
     if (!volunteer || !canAdvance) return;
-    const nextStage = STAGE_ORDER[currentIdx + 1];
+    const nextStage = stageOrder[currentIdx + 1];
     const now = new Date().toISOString();
     setVolunteer(v => v ? {
       ...v,
@@ -148,7 +185,7 @@ export default function VolunteerDetail() {
 
   async function retreatStage() {
     if (!volunteer || !canRetreat) return;
-    const prevStage = STAGE_ORDER[currentIdx - 1];
+    const prevStage = stageOrder[currentIdx - 1];
     const now = new Date().toISOString();
     setVolunteer(v => v ? {
       ...v,
@@ -173,7 +210,7 @@ export default function VolunteerDetail() {
     if (!volunteer) return;
     const now = new Date().toISOString();
     const lastTrackStage = ([...volunteer.stageHistory].reverse()
-      .find(h => STAGE_ORDER.includes(h.stage as JourneyStage))?.stage as JourneyStage) ?? 'cadastrado';
+      .find(h => stageOrder.includes(h.stage as JourneyStage))?.stage as JourneyStage) ?? stageOrder[0];
     setVolunteer(v => v ? {
       ...v,
       currentStage: lastTrackStage,
@@ -184,15 +221,17 @@ export default function VolunteerDetail() {
     showToast(`Reativado em: ${STAGE_LABELS[lastTrackStage]}`);
   }
 
-  function startEdit(field: 'phone' | 'email' | 'name' | 'subArea' | 'birthday') {
+  function startEdit(field: 'phone' | 'email' | 'name' | 'subArea' | 'birthday' | 'howFound') {
     setEditField(field);
-    setEditValue(field === 'birthday' ? (volunteer?.birthday ?? '') : (volunteer?.[field as 'phone' | 'email' | 'name' | 'subArea'] ?? ''));
+    if (field === 'birthday') setEditValue(volunteer?.birthday ?? '');
+    else if (field === 'howFound') setEditValue(volunteer?.howFound ?? '');
+    else setEditValue(volunteer?.[field as 'phone' | 'email' | 'name' | 'subArea'] ?? '');
   }
 
   async function saveEdit() {
     if (!volunteer || !editField) return;
     const trimmed = editValue.trim();
-    const dbField = editField === 'subArea' ? 'sub_area' : editField;
+    const dbField = editField === 'subArea' ? 'sub_area' : editField === 'howFound' ? 'how_found' : editField;
     const updates: Record<string, string | null> = { [dbField]: trimmed || null };
 
     if (editField === 'subArea') {
@@ -205,13 +244,48 @@ export default function VolunteerDetail() {
       }
     } else if (editField === 'birthday') {
       setVolunteer(v => v ? { ...v, birthday: trimmed || undefined } : v);
+    } else if (editField === 'howFound') {
+      setVolunteer(v => v ? { ...v, howFound: trimmed || undefined } : v);
     } else {
       setVolunteer(v => v ? { ...v, [editField]: trimmed } : v);
     }
 
     setEditField(null);
     await supabase.from('volunteers').update(updates).eq('id', volunteer.id);
+
+    // Log the edit
+    const fieldLabel: Record<string, string> = {
+      phone: 'Telefone', email: 'Email', name: 'Nome',
+      subArea: 'Sub-área', birthday: 'Aniversário', howFound: 'Como chegou',
+    };
+    const oldVal = editField === 'birthday' ? (volunteer.birthday ?? null)
+      : editField === 'howFound' ? (volunteer.howFound ?? null)
+      : (volunteer[editField as 'phone' | 'email' | 'name' | 'subArea'] ?? null);
+    await supabase.from('volunteer_edit_log').insert({
+      volunteer_id: volunteer.id,
+      field: fieldLabel[editField] ?? editField,
+      old_value: oldVal,
+      new_value: trimmed || null,
+      changed_by: profile?.name ?? null,
+    });
+    setEditLog(prev => [{
+      field: fieldLabel[editField] ?? editField,
+      old_value: oldVal,
+      new_value: trimmed || null,
+      changed_by: profile?.name ?? null,
+      changed_at: new Date().toISOString(),
+    }, ...prev]);
+
     showToast('Atualizado com sucesso!');
+  }
+
+  async function archiveVolunteer() {
+    if (!volunteer) return;
+    const now = new Date().toISOString();
+    await supabase.from('volunteers').update({ archived_at: now }).eq('id', volunteer.id);
+    showToast('Voluntário arquivado.');
+    setShowArchiveConfirm(false);
+    setTimeout(() => navigate(-1), 1200);
   }
 
   async function addNote() {
@@ -237,14 +311,38 @@ export default function VolunteerDetail() {
         </div>
       )}
 
-      {/* Back */}
-      <button
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm font-medium"
-      >
-        <ArrowLeft size={16} />
-        Voltar
-      </button>
+      {/* Archive confirm modal */}
+      {showArchiveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
+            <h3 className="text-base font-bold text-gray-900 mb-2">Arquivar voluntário?</h3>
+            <p className="text-sm text-gray-500 mb-5">O voluntário será removido de todas as listas e painéis. O histórico fica preservado e pode ser restaurado pelo banco de dados.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowArchiveConfirm(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">Cancelar</button>
+              <button onClick={archiveVolunteer} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700">Arquivar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Back + archive */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm font-medium"
+        >
+          <ArrowLeft size={16} />
+          Voltar
+        </button>
+        <button
+          onClick={() => setShowArchiveConfirm(true)}
+          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-500 transition-colors"
+          title="Arquivar voluntário"
+        >
+          <Archive size={13} />
+          Arquivar
+        </button>
+      </div>
 
       {/* Header card */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -310,7 +408,7 @@ export default function VolunteerDetail() {
 
             {/* Action buttons */}
             <div className="flex flex-wrap gap-2">
-              <WaButton phone={volunteer.phone} name={volunteer.name} size="md" onClick={() => volunteer.phone && markContacted()} />
+              <WaButton phone={volunteer.phone} message={ministry ? buildTemplate(volunteer.currentStage, volunteer, ministry.name, profile?.name) : undefined} size="md" onClick={() => volunteer.phone && markContacted()} />
               {isOffTrack ? (
                 <button
                   className="flex items-center gap-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-medium transition-colors"
@@ -392,7 +490,7 @@ export default function VolunteerDetail() {
           )}
 
           {/* Contact info grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mt-5 pt-5 border-t border-gray-100">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 mt-5 pt-5 border-t border-gray-100">
             {/* Phone — editable */}
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Telefone</p>
@@ -411,10 +509,10 @@ export default function VolunteerDetail() {
                   <button onClick={() => setEditField(null)} className="text-gray-400 hover:text-gray-600 p-1"><X size={14} /></button>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5">
-                  <WaButton phone={volunteer.phone} name={volunteer.name} size="sm" onClick={() => volunteer.phone && markContacted()} />
-                  <span className="text-xs text-gray-400 font-mono hidden sm:inline">{volunteer.phone || '—'}</span>
-                  <button onClick={() => startEdit('phone')} className="text-gray-400 hover:text-indigo-600 transition-colors p-0.5" title="Editar telefone">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <WaButton phone={volunteer.phone} message={ministry ? buildTemplate(volunteer.currentStage, volunteer, ministry.name, profile?.name) : undefined} size="sm" onClick={() => volunteer.phone && markContacted()} />
+                  <span className="text-xs text-gray-400 font-mono truncate hidden sm:inline">{volunteer.phone || '—'}</span>
+                  <button onClick={() => startEdit('phone')} className="text-gray-400 hover:text-indigo-600 transition-colors p-0.5 flex-shrink-0" title="Editar telefone">
                     <Pencil size={11} />
                   </button>
                 </div>
@@ -438,9 +536,9 @@ export default function VolunteerDetail() {
                   <button onClick={() => setEditField(null)} className="text-gray-400 hover:text-gray-600 p-1"><X size={14} /></button>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
                   <Mail size={13} className="text-gray-400 flex-shrink-0" />
-                  <span className="text-sm text-gray-700 truncate">{volunteer.email || <span className="text-gray-400 italic">não informado</span>}</span>
+                  <span className="text-sm text-gray-700 truncate min-w-0">{volunteer.email || <span className="text-gray-400 italic">não informado</span>}</span>
                   <button onClick={() => startEdit('email')} className="text-gray-400 hover:text-indigo-600 transition-colors p-0.5 flex-shrink-0" title="Editar email">
                     <Pencil size={11} />
                   </button>
@@ -487,6 +585,36 @@ export default function VolunteerDetail() {
                 </div>
               )}
             </div>
+            {/* Como chegou — editable */}
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Como chegou</p>
+              {editField === 'howFound' ? (
+                <div className="flex items-center gap-1">
+                  <select
+                    autoFocus
+                    value={editValue}
+                    onChange={e => setEditValue(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditField(null); }}
+                    className="flex-1 border border-indigo-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 min-w-0"
+                  >
+                    <option value="">— não informado —</option>
+                    {HOW_FOUND_OPTIONS.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                  <button onClick={saveEdit} className="text-green-600 p-1"><Save size={13} /></button>
+                  <button onClick={() => setEditField(null)} className="text-gray-400 p-1"><X size={13} /></button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <Compass size={13} className="text-gray-400 flex-shrink-0" />
+                  <span className="text-xs text-gray-700 truncate min-w-0">
+                    {volunteer.howFound || <span className="text-gray-400 italic">não informado</span>}
+                  </span>
+                  <button onClick={() => startEdit('howFound')} className="text-gray-400 hover:text-indigo-600 p-0.5 flex-shrink-0"><Pencil size={11} /></button>
+                </div>
+              )}
+            </div>
             {/* Contact attempts */}
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Tentativas</p>
@@ -517,7 +645,7 @@ export default function VolunteerDetail() {
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h2 className="text-base font-semibold text-gray-800 mb-6">Progresso da Jornada</h2>
-          <StageProgressBar currentStage={volunteer.currentStage} />
+          <StageProgressBar currentStage={volunteer.currentStage} stageOrder={stageOrder} />
           <div className="mt-4 flex items-center justify-between text-xs text-gray-400">
             <span>Etapa {currentIdx + 1} de {STAGE_ORDER.length}</span>
             <span>{Math.round(((currentIdx + 1) / STAGE_ORDER.length) * 100)}% concluído</span>
@@ -614,6 +742,37 @@ export default function VolunteerDetail() {
               ))}
             </div>
           </div>
+
+          {/* Edit history */}
+          {editLog.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+              <button
+                onClick={() => setShowEditLog(v => !v)}
+                className="flex items-center gap-2 w-full text-left"
+              >
+                <History size={15} className="text-gray-400" />
+                <h2 className="text-sm font-semibold text-gray-800 flex-1">Histórico de Edições</h2>
+                <span className="text-xs text-gray-400">{editLog.length} alteraç{editLog.length !== 1 ? 'ões' : 'ão'} · {showEditLog ? 'ocultar' : 'ver'}</span>
+              </button>
+              {showEditLog && (
+                <div className="mt-3 space-y-2">
+                  {editLog.map((entry, i) => (
+                    <div key={i} className="flex items-start gap-3 text-xs text-gray-600 border-l-2 border-gray-100 pl-3">
+                      <div className="flex-1 min-w-0">
+                        <span className="font-semibold text-gray-700">{entry.field}</span>
+                        {entry.old_value && <span className="text-gray-400"> · antes: <span className="line-through">{entry.old_value}</span></span>}
+                        {entry.new_value && <span className="text-indigo-600"> → {entry.new_value}</span>}
+                        {entry.changed_by && <span className="text-gray-400"> por {entry.changed_by}</span>}
+                      </div>
+                      <span className="text-gray-300 flex-shrink-0 whitespace-nowrap">
+                        {new Date(entry.changed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

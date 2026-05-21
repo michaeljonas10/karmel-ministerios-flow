@@ -1,3 +1,5 @@
+export const HOW_FOUND_OPTIONS: string[] = ['Integra', 'Culto Visão', 'App da Igreja', 'Indicação de Membro'];
+
 export type JourneyStage =
   | 'cadastrado'
   | 'grupo_acolhimento'
@@ -63,6 +65,8 @@ export interface Volunteer {
   stageHistory: StageHistoryEntry[];
   notes: string;
   howFound?: string;
+  participatesGc?: boolean;
+  archivedAt?: string;
   lastContactDate: string;
   alertDays?: number;
   birthday?: string;
@@ -72,7 +76,8 @@ export interface Volunteer {
 export interface SubArea {
   id: string;
   name: string;
-  coordinator: string;
+  coordinator: string;        // legacy freetext fallback
+  coordinatorNames: string[]; // derived from user_profiles assignments
   volunteerCount: number;
   capacity?: number;
 }
@@ -85,4 +90,13 @@ export interface Ministry {
   icon: string;
   subAreas: SubArea[];
   coordinators: string[];
+  journeyStages?: JourneyStage[]; // null/undefined = usar STAGE_ORDER completo
+}
+
+/** Retorna as etapas configuradas para o ministério, ou o fluxo completo como fallback. */
+export function getMinistryStages(ministry?: Ministry): JourneyStage[] {
+  if (ministry?.journeyStages && ministry.journeyStages.length > 0) {
+    return ministry.journeyStages;
+  }
+  return STAGE_ORDER;
 }

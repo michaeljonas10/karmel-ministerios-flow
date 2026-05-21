@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line,
 } from 'recharts';
-import { Users, TrendingUp, Award, AlertTriangle, Phone, UserPlus, X, Check, Upload } from 'lucide-react';
+import { Users, TrendingUp, Award, AlertTriangle, Phone, UserPlus, X, Check, Upload, Cake } from 'lucide-react';
 import ImportModal from '../components/ImportModal';
 import { getDaysSinceLastContact } from '../data/volunteers';
 import { STAGE_LABELS, STAGE_ORDER } from '../types';
@@ -35,7 +35,7 @@ function KPICard({
 function AddVolunteerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const { ministries: mins } = useMinistries();
   const [form, setForm] = useState({
-    name: '', phone: '', email: '', ministryId: '', subArea: '', coordinator: '', notes: '', howFound: '',
+    name: '', phone: '', email: '', ministryId: '', subArea: '', coordinator: '', notes: '', howFound: '', participatesGc: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -46,10 +46,11 @@ function AddVolunteerModal({ onClose, onSaved }: { onClose: () => void; onSaved:
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(p => ({ ...p, [k]: e.target.value }));
 
-  // Auto-fill coordinator when sub-area is picked
+  // Auto-fill coordinator when sub-area is picked (store NAME, not ID)
   const handleSubArea = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const sub = selectedMinistry?.subAreas.find(s => s.id === e.target.value);
-    setForm(p => ({ ...p, subArea: e.target.value, coordinator: sub?.coordinator || p.coordinator }));
+    const sub = selectedMinistry?.subAreas.find(s => s.name === e.target.value);
+    const coordName = sub?.coordinatorNames?.[0] || sub?.coordinator || '';
+    setForm(p => ({ ...p, subArea: e.target.value, coordinator: coordName }));
   };
 
   const handleMinistry = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -72,6 +73,7 @@ function AddVolunteerModal({ onClose, onSaved }: { onClose: () => void; onSaved:
       ministry_id: form.ministryId, sub_area: form.subArea,
       coordinator: form.coordinator.trim(),
       how_found: form.howFound || null,
+      participates_gc: form.participatesGc === 'Sim' ? true : form.participatesGc === 'Não' ? false : null,
       current_stage: 'cadastrado', notes: form.notes.trim(),
       registered_at: now, last_contact_date: now,
     });
@@ -146,7 +148,7 @@ function AddVolunteerModal({ onClose, onSaved }: { onClose: () => void; onSaved:
                   <select value={form.subArea} onChange={handleSubArea} disabled={!form.ministryId}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
                     <option value="">Selecione...</option>
-                    {selectedMinistry?.subAreas.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    {selectedMinistry?.subAreas.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                   </select>
                 </div>
                 <div className="col-span-2">
@@ -168,6 +170,24 @@ function AddVolunteerModal({ onClose, onSaved }: { onClose: () => void; onSaved:
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Participa de GC?</label>
+                  <div className="flex gap-2 mt-1">
+                    {['Sim', 'Não'].map(opt => (
+                      <label key={opt} className={`flex-1 flex items-center justify-center gap-1.5 border rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors ${
+                        form.participatesGc === opt
+                          ? 'bg-indigo-50 border-indigo-400 text-indigo-700 font-medium'
+                          : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                      }`}>
+                        <input type="radio" name="participatesGc" value={opt}
+                          checked={form.participatesGc === opt}
+                          onChange={e => setForm(p => ({ ...p, participatesGc: e.target.value }))}
+                          className="hidden" />
+                        {opt}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
                   <textarea value={form.notes} onChange={set('notes')} rows={1} placeholder="Notas..."
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
@@ -224,22 +244,22 @@ export default function Dashboard() {
     color: m.color,
   }));
 
-  // Timeline: last 12 weeks
+  // Timeline: last 12 weeks (always relative to today)
   function getWeeklyData() {
+    const now = new Date();
     const weeks = [];
     for (let w = 11; w >= 0; w--) {
-      const weekStart = new Date('2026-05-15');
-      weekStart.setDate(weekStart.getDate() - w * 7 - 6);
-      const weekEnd = new Date('2026-05-15');
+      const weekEnd = new Date(now);
       weekEnd.setDate(weekEnd.getDate() - w * 7);
+      weekEnd.setHours(23, 59, 59, 999);
+      const weekStart = new Date(weekEnd);
+      weekStart.setDate(weekStart.getDate() - 6);
+      weekStart.setHours(0, 0, 0, 0);
       const count = volunteers.filter(v => {
         const d = new Date(v.registeredAt);
         return d >= weekStart && d <= weekEnd;
       }).length;
-      weeks.push({
-        week: `S${12 - w}`,
-        cadastros: count,
-      });
+      weeks.push({ week: `S${12 - w}`, cadastros: count });
     }
     return weeks;
   }
@@ -259,6 +279,20 @@ export default function Dashboard() {
   const weeklyData = getWeeklyData();
   const coordinatorStats = getCoordinatorStats();
 
+  // Birthday this month
+  const todayMonth = new Date().getMonth() + 1;
+  const birthdayVolunteers = volunteers
+    .filter(v => {
+      if (!v.birthday) return false;
+      const m = parseInt(v.birthday.split('-')[1], 10);
+      return m === todayMonth;
+    })
+    .sort((a, b) => {
+      const da = parseInt(a.birthday!.split('-')[2], 10);
+      const db = parseInt(b.birthday!.split('-')[2], 10);
+      return da - db;
+    });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -273,7 +307,9 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 text-sm mt-1">Visão geral da jornada de voluntários — maio 2026</p>
+          <p className="text-gray-500 text-sm mt-1">
+            Visão geral da jornada de voluntários — {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+          </p>
         </div>
         <div className="flex gap-2">
           <button
@@ -339,6 +375,37 @@ export default function Dashboard() {
           color="bg-orange-50"
         />
       </div>
+
+      {/* Birthdays this month */}
+      {birthdayVolunteers.length > 0 && (
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-pink-100">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center flex-shrink-0">
+              <Cake size={16} className="text-pink-500" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-gray-800">Aniversariantes do Mês</h2>
+              <p className="text-xs text-gray-400">{new Date().toLocaleDateString('pt-BR', { month: 'long' })} · {birthdayVolunteers.length} voluntário{birthdayVolunteers.length !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {birthdayVolunteers.map(v => {
+              const day = parseInt(v.birthday!.split('-')[2], 10);
+              const isToday = day === new Date().getDate();
+              return (
+                <button
+                  key={v.id}
+                  onClick={() => navigate(`/voluntario/${v.id}`)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${isToday ? 'bg-pink-500 text-white' : 'bg-pink-50 text-pink-700 hover:bg-pink-100'}`}
+                >
+                  {isToday && '🎂 '}
+                  {v.name.split(' ')[0]} <span className="opacity-70">dia {day}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Charts row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

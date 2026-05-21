@@ -8,12 +8,10 @@ import { TrendingUp, Users, CheckCircle, AlertTriangle, Target, Calendar, X, Dow
 import { useAuth } from '../contexts/AuthContext'
 import { useVolunteers } from '../hooks/useVolunteers'
 import { useMinistries } from '../hooks/useMinistries'
-import { STAGE_LABELS, STAGE_ORDER } from '../types'
+import { STAGE_LABELS, STAGE_ORDER, HOW_FOUND_OPTIONS } from '../types'
 import type { Volunteer } from '../types'
 import { getDaysSinceLastContact } from '../data/volunteers'
 import { supabase } from '../lib/supabase'
-
-const HOW_FOUND_OPTIONS = ['Integra', 'Culto Visão', 'App da Igreja', 'Indicação de Membro']
 const HOW_FOUND_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#e11d48']
 const STAGE_COLORS = ['#e0e7ff','#c7d2fe','#a5b4fc','#818cf8','#6366f1','#4f46e5','#4338ca','#3730a3','#312e81','#1e1b4b']
 const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -30,20 +28,25 @@ function getDateBounds(mode: FilterMode, year: number, month: number, startDate:
   return null
 }
 
+/** Returns end-of-day (23:59:59.999) for a given date */
+function endOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
+}
+
 function buildTimeSeries(volunteers: Volunteer[], mode: FilterMode, year: number, month: number, startDate: string, endDate: string) {
   const now = new Date()
 
   if (mode === 'month') {
     const firstDay = new Date(year, month, 1)
-    const lastDay = new Date(year, month + 1, 0)
+    const lastDay = endOfDay(new Date(year, month + 1, 0))
     const weeks: { month: string; cadastros: number; estabelecidos: number }[] = []
     const cur = new Date(firstDay)
     let weekNum = 1
     while (cur <= lastDay) {
-      const wStart = new Date(cur)
-      const wEnd = new Date(cur)
-      wEnd.setDate(wEnd.getDate() + 6)
-      if (wEnd > lastDay) wEnd.setTime(lastDay.getTime())
+      const wStart = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 0, 0, 0, 0)
+      const wEndRaw = new Date(cur)
+      wEndRaw.setDate(wEndRaw.getDate() + 6)
+      const wEnd = endOfDay(wEndRaw > lastDay ? lastDay : wEndRaw)
       weeks.push({
         month: `Sem ${weekNum}`,
         cadastros: volunteers.filter(v => { const d = new Date(v.registeredAt); return d >= wStart && d <= wEnd }).length,
@@ -62,7 +65,7 @@ function buildTimeSeries(volunteers: Volunteer[], mode: FilterMode, year: number
   if (mode === 'year') {
     return Array.from({ length: 12 }, (_, i) => {
       const from = new Date(year, i, 1)
-      const to = new Date(year, i + 1, 0)
+      const to = endOfDay(new Date(year, i + 1, 0))
       return {
         month: MONTH_SHORT[i],
         cadastros: volunteers.filter(v => { const d = new Date(v.registeredAt); return d >= from && d <= to }).length,
@@ -77,12 +80,12 @@ function buildTimeSeries(volunteers: Volunteer[], mode: FilterMode, year: number
 
   if (mode === 'range' && startDate && endDate) {
     const from = new Date(startDate)
-    const to = new Date(endDate + 'T23:59:59')
+    const to = endOfDay(new Date(endDate))
     const months: { month: string; cadastros: number; estabelecidos: number }[] = []
     const cur = new Date(from.getFullYear(), from.getMonth(), 1)
     while (cur <= to) {
       const mStart = new Date(cur)
-      const mEnd = new Date(cur.getFullYear(), cur.getMonth() + 1, 0)
+      const mEnd = endOfDay(new Date(cur.getFullYear(), cur.getMonth() + 1, 0))
       months.push({
         month: `${MONTH_SHORT[cur.getMonth()]}/${String(cur.getFullYear()).slice(2)}`,
         cadastros: volunteers.filter(v => { const d = new Date(v.registeredAt); return d >= mStart && d <= mEnd }).length,
@@ -97,10 +100,11 @@ function buildTimeSeries(volunteers: Volunteer[], mode: FilterMode, year: number
     return months
   }
 
+  // Default: last 6 months (monthly buckets)
   return Array.from({ length: 6 }, (_, idx) => {
     const d = new Date(now.getFullYear(), now.getMonth() - (5 - idx), 1)
     const mStart = new Date(d.getFullYear(), d.getMonth(), 1)
-    const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+    const mEnd = endOfDay(new Date(d.getFullYear(), d.getMonth() + 1, 0))
     return {
       month: d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
       cadastros: volunteers.filter(v => { const r = new Date(v.registeredAt); return r >= mStart && r <= mEnd }).length,
@@ -128,7 +132,7 @@ function useMetrics(volunteers: Volunteer[], allVols: Volunteer[], mode: FilterM
     if (unknownOrigin > 0) originData.push({ name: 'Não informado', value: unknownOrigin, color: '#d1d5db' })
     const monthlyData = buildTimeSeries(allVols, mode, year, month, startDate, endDate)
     const subAreaMap: Record<string, number> = {}
-    volunteers.forEach(v => { subAreaMap[v.subArea] = (subAreaMap[v.subArea] || 0) + 1 })
+    volunteers.forEach(v => { const key = v.subArea || 'Sem sub-área'; subAreaMap[key] = (subAreaMap[key] || 0) + 1 })
     const subAreaData = Object.entries(subAreaMap).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, count]) => ({ name, count }))
     const total = volunteers.length
     const established = volunteers.filter(v => v.currentStage === 'estabelecido').length
@@ -146,7 +150,15 @@ function useMetrics(volunteers: Volunteer[], allVols: Volunteer[], mode: FilterM
     }
     const contactedThisWeek = volunteers.filter(v => getDaysSinceLastContact(v) <= 7).length
     const contactedThisMonth = volunteers.filter(v => getDaysSinceLastContact(v) <= 30).length
-    return { stageFunnel, originData, monthlyData, subAreaData, total, established, establishRate, alerts, avgDaysToEstablish, contactedThisWeek, contactedThisMonth }
+    const inGc = volunteers.filter(v => v.participatesGc === true).length
+    const notInGc = volunteers.filter(v => v.participatesGc === false).length
+    const gcUnknown = total - inGc - notInGc
+    const gcData = [
+      { name: 'Participa de GC', value: inGc, color: '#6366f1' },
+      { name: 'Não participa', value: notInGc, color: '#f59e0b' },
+      ...(gcUnknown > 0 ? [{ name: 'Não informado', value: gcUnknown, color: '#e5e7eb' }] : []),
+    ].filter(d => d.value > 0)
+    return { stageFunnel, originData, monthlyData, subAreaData, total, established, establishRate, alerts, avgDaysToEstablish, contactedThisWeek, contactedThisMonth, inGc, notInGc, gcUnknown, gcData }
   }, [volunteers, allVols, mode, year, month, startDate, endDate])
 }
 
@@ -256,7 +268,7 @@ interface ReportProps {
 }
 
 function ReportDocument({ churchName, logoUrl, scopeLabel, periodLabel, chartTimeLabel, metrics, ministryBreakdown, isAdmin }: ReportProps) {
-  const { stageFunnel, originData, monthlyData, subAreaData, total, established, establishRate, alerts, avgDaysToEstablish, contactedThisWeek, contactedThisMonth } = metrics
+  const { stageFunnel, originData, monthlyData, subAreaData, total, established, establishRate, alerts, avgDaysToEstablish, contactedThisWeek, contactedThisMonth, inGc, notInGc, gcUnknown, gcData } = metrics
   const now = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 
   return (
@@ -379,6 +391,33 @@ function ReportDocument({ churchName, logoUrl, scopeLabel, periodLabel, chartTim
                 ))}
               </div>
             </div>
+            {/* GC pie */}
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 18 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Participação em GC</div>
+              <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 12 }}>Grupo de Células</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24, marginBottom: 12 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: '#6366f1' }}>{inGc}</div>
+                  <div style={{ fontSize: 10, color: '#6b7280' }}>Participam</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: '#f59e0b' }}>{notInGc}</div>
+                  <div style={{ fontSize: 10, color: '#6b7280' }}>Não participam</div>
+                </div>
+                {gcUnknown > 0 && (
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: '#d1d5db' }}>{gcUnknown}</div>
+                    <div style={{ fontSize: 10, color: '#6b7280' }}>Não informado</div>
+                  </div>
+                )}
+              </div>
+              <PieChart width={200} height={140}>
+                <Pie data={gcData} cx="50%" cy="50%" outerRadius={55} dataKey="value" nameKey="name"
+                  label={({ percent }: { percent?: number }) => `${Math.round((percent ?? 0) * 100)}%`} labelLine={false}>
+                  {gcData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                </Pie>
+              </PieChart>
+            </div>
           </div>
         </div>
 
@@ -406,14 +445,18 @@ function ReportDocument({ churchName, logoUrl, scopeLabel, periodLabel, chartTim
             <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 18 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 12 }}>Voluntários por Sub-área (top 10)</div>
               {subAreaData.length === 0
-                ? <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 12 }}>Sem dados</div>
+                ? <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 12 }}>Sem dados</div>
                 : (
-                  <BarChart width={380} height={200} data={subAreaData} layout="vertical" margin={{ top: 0, right: 10, bottom: 0, left: 70 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fill: '#6b7280' }} width={70} />
-                    <Bar dataKey="count" name="Voluntários" fill="#6366f1" radius={[0, 4, 4, 0]} />
-                  </BarChart>
+                  <ResponsiveContainer width="100%" height={Math.max(120, subAreaData.length * 36)}>
+                    <BarChart data={subAreaData} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 100 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} allowDecimals={false} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} width={100}
+                        tickFormatter={(v: string) => v.length > 14 ? v.slice(0, 13) + '…' : v} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="count" name="Voluntários" fill="#6366f1" radius={[0, 4, 4, 0]} maxBarSize={22} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 )
               }
             </div>
@@ -575,13 +618,30 @@ export default function Metricas() {
 
   const scopedVolunteers = useMemo(() => {
     if (isAdmin) {
-      const base = ministryFilter === 'all' ? volunteers : volunteers.filter(v => v.ministryId === ministryFilter)
-      return base
+      return ministryFilter === 'all' ? volunteers : volunteers.filter(v => v.ministryId === ministryFilter)
     }
     if (isLeader) return volunteers.filter(v => v.ministryId === profile?.ministry_id)
-    if (isCoordinator) return volunteers.filter(v => (profile?.sub_areas ?? []).includes(v.subArea))
+    if (isCoordinator) {
+      // profile.sub_areas contains IDs (e.g. "follow_fotografia")
+      // but v.subArea contains the display name (e.g. "Fotografia")
+      // → resolve IDs → names via ministry context before filtering
+      const ministry = ministries.find(m => m.id === profile?.ministry_id)
+      const prefix = (profile?.ministry_id ?? '') + '_'
+      const stripPfx = (s: string) => { let r = s; while (r.startsWith(prefix)) r = r.slice(prefix.length); return r }
+      const mySubAreaNames = (profile?.sub_areas ?? [])
+        .map(id => {
+          const exact = ministry?.subAreas.find(sa => sa.id === id)
+          if (exact) return exact.name
+          const base = stripPfx(id)
+          return ministry?.subAreas.find(sa => stripPfx(sa.id) === base)?.name ?? null
+        })
+        .filter(Boolean) as string[]
+      return volunteers.filter(v =>
+        v.ministryId === profile?.ministry_id && mySubAreaNames.includes(v.subArea)
+      )
+    }
     return []
-  }, [volunteers, profile, isAdmin, isLeader, isCoordinator, ministryFilter])
+  }, [volunteers, profile, isAdmin, isLeader, isCoordinator, ministryFilter, ministries])
 
   const dateFilteredVolunteers = useMemo(() => {
     const bounds = getDateBounds(filterMode, selectedYear, selectedMonth, startDate, endDate)
@@ -607,7 +667,7 @@ export default function Metricas() {
   }, [filterMode, selectedYear, selectedMonth, startDate, endDate, periodLabel])
 
   const metrics = useMetrics(dateFilteredVolunteers, scopedVolunteers, filterMode, selectedYear, selectedMonth, startDate, endDate)
-  const { stageFunnel, originData, monthlyData, subAreaData, total, established, establishRate, alerts, avgDaysToEstablish, contactedThisWeek, contactedThisMonth } = metrics
+  const { stageFunnel, originData, monthlyData, subAreaData, total, established, establishRate, alerts, avgDaysToEstablish, contactedThisWeek, contactedThisMonth, inGc, notInGc, gcUnknown, gcData } = metrics
 
   const scopeLabel = isAdmin
     ? ministryFilter === 'all'
@@ -786,6 +846,37 @@ export default function Metricas() {
                     )
                   }
                 </ChartCard>
+                <ChartCard title="Participação em GC">
+                  <p className="text-xs text-gray-400 -mt-1 mb-3">Grupo de Células</p>
+                  <div className="flex justify-around mb-3">
+                    <div className="text-center">
+                      <p className="text-3xl font-extrabold text-indigo-600">{inGc}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Participam</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-3xl font-extrabold text-amber-500">{notInGc}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Não participam</p>
+                    </div>
+                    {gcUnknown > 0 && (
+                      <div className="text-center">
+                        <p className="text-3xl font-extrabold text-gray-300">{gcUnknown}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">Não informado</p>
+                      </div>
+                    )}
+                  </div>
+                  {gcData.length > 0 && (
+                    <ResponsiveContainer width="100%" height={140}>
+                      <PieChart>
+                        <Pie data={gcData} cx="50%" cy="50%" outerRadius={55} dataKey="value" nameKey="name"
+                          label={({ percent }: { percent?: number }) => `${Math.round((percent ?? 0) * 100)}%`} labelLine={false}>
+                          {gcData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                        </Pie>
+                        <Tooltip formatter={(v, n) => [v, n]} />
+                        <Legend iconSize={8} formatter={(v) => <span style={{ fontSize: 11, color: '#6b7280' }}>{v}</span>} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </ChartCard>
               </div>
             </div>
 
@@ -808,15 +899,16 @@ export default function Metricas() {
                 </ChartCard>
                 <ChartCard title="Voluntários por Sub-área (top 10)">
                   {subAreaData.length === 0
-                    ? <div className="h-[200px] flex items-center justify-center text-gray-400 text-sm">Sem dados</div>
+                    ? <div className="h-[120px] flex items-center justify-center text-gray-400 text-sm">Sem dados</div>
                     : (
-                      <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={subAreaData} layout="vertical" margin={{ top: 0, right: 10, bottom: 0, left: 60 }}>
+                      <ResponsiveContainer width="100%" height={Math.max(120, subAreaData.length * 36)}>
+                        <BarChart data={subAreaData} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 100 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
-                          <XAxis type="number" tick={{ fontSize: 11, fill: '#9ca3af' }} />
-                          <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} width={60} />
+                          <XAxis type="number" tick={{ fontSize: 11, fill: '#9ca3af' }} allowDecimals={false} />
+                          <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} width={100}
+                            tickFormatter={(v: string) => v.length > 14 ? v.slice(0, 13) + '…' : v} />
                           <Tooltip content={<CustomTooltip />} />
-                          <Bar dataKey="count" name="Voluntários" fill="var(--accent)" radius={[0, 4, 4, 0]} />
+                          <Bar dataKey="count" name="Voluntários" fill="var(--accent)" radius={[0, 4, 4, 0]} maxBarSize={22} />
                         </BarChart>
                       </ResponsiveContainer>
                     )

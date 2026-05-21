@@ -4,18 +4,19 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import {
   Search, Users, CheckCircle, AlertTriangle, LogOut,
   ChevronRight, Plus, Pencil, Trash2, X, UserPlus, Eye, EyeOff,
-  LayoutGrid, List, TrendingUp, Award, Clock, ShieldCheck,
+  LayoutGrid, List, TrendingUp, Award, Clock, ShieldCheck, Tag,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useVolunteers } from '../hooks/useVolunteers'
 import { useMinistries } from '../hooks/useMinistries'
 import { getDaysSinceLastContact } from '../data/volunteers'
-import { STAGE_ORDER, STAGE_LABELS, OFF_TRACK_STAGES } from '../types'
+import { STAGE_ORDER, STAGE_LABELS, OFF_TRACK_STAGES, HOW_FOUND_OPTIONS } from '../types'
 import type { JourneyStage } from '../types'
 import JourneyBadge from '../components/JourneyBadge'
 import VolunteerCard from '../components/VolunteerCard'
 import { supabase } from '../lib/supabase'
 import WaButton from '../components/WaButton'
+import { buildTemplate } from '../data/waTemplates'
 import type { Volunteer } from '../types'
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor,
@@ -37,20 +38,45 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 // ─── Volunteer table / cards ─────────────────────────────────────────────────
 function VolunteerTable({
   volunteers,
+  ministryName,
+  senderName,
   onMarkContacted,
   onAdvanceStage,
+  onBulkUpdateHowFound,
 }: {
   volunteers: Volunteer[]
+  ministryName: string
+  senderName: string
   onMarkContacted: (id: string) => void
   onAdvanceStage: (id: string) => void
+  onBulkUpdateHowFound?: (ids: string[], value: string) => Promise<void>
 }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkHowFound, setBulkHowFound] = useState('')
+  const [bulkApplying, setBulkApplying] = useState(false)
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  const toggleSelectAll = (ids: string[]) =>
+    setSelectedIds(prev => prev.size === ids.length ? new Set() : new Set(ids))
+  const clearSelection = () => { setSelectedIds(new Set()); setBulkHowFound('') }
+
+  const applyBulk = async () => {
+    if (!bulkHowFound || selectedIds.size === 0 || !onBulkUpdateHowFound) return
+    setBulkApplying(true)
+    await onBulkUpdateHowFound([...selectedIds], bulkHowFound)
+    setBulkApplying(false)
+    clearSelection()
+  }
 
   const filtered = volunteers.filter(v =>
     v.name.toLowerCase().includes(search.toLowerCase()) ||
     v.subArea.toLowerCase().includes(search.toLowerCase())
   )
+  const filteredIds = filtered.map(v => v.id)
+  const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id))
 
   const empty = (
     <div className="text-center py-12 text-gray-400">
@@ -61,6 +87,38 @@ function VolunteerTable({
 
   return (
     <div>
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-xl flex-wrap">
+          <span className="text-sm font-medium text-indigo-700 flex-shrink-0">
+            {selectedIds.size} selecionado{selectedIds.size !== 1 ? 's' : ''}
+          </span>
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Tag size={14} className="text-indigo-500 flex-shrink-0" />
+              <select
+                value={bulkHowFound}
+                onChange={e => setBulkHowFound(e.target.value)}
+                className="border border-indigo-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+              >
+                <option value="">Como chegou...</option>
+                {HOW_FOUND_OPTIONS.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              onClick={applyBulk}
+              disabled={!bulkHowFound || bulkApplying}
+              className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-indigo-700 transition-colors"
+            >
+              {bulkApplying ? 'Aplicando...' : 'Aplicar'}
+            </button>
+          </div>
+          <button onClick={clearSelection} className="text-indigo-400 hover:text-indigo-600 flex-shrink-0"><X size={16} /></button>
+        </div>
+      )}
+
       {/* Header row */}
       <div className="flex items-center gap-3 mb-3">
         <h2 className="font-semibold text-gray-800 flex-1 min-w-0 truncate">
@@ -83,11 +141,18 @@ function VolunteerTable({
         {filtered.length === 0 ? empty : filtered.map(v => {
           const days = getDaysSinceLastContact(v)
           const isLast = STAGE_ORDER.indexOf(v.currentStage) === STAGE_ORDER.length - 1
+          const isSelected = selectedIds.has(v.id)
           return (
-            <div key={v.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-              <div className="flex items-start justify-between gap-2 mb-2">
+            <div key={v.id} className={`bg-white rounded-2xl border shadow-sm p-4 transition-colors ${isSelected ? 'border-indigo-300 bg-indigo-50/30' : 'border-gray-100'}`}>
+              <div className="flex items-start gap-2 mb-2">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleSelect(v.id)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+                />
                 <button
-                  className="text-sm font-semibold text-gray-800 hover:text-indigo-600 text-left leading-tight"
+                  className="text-sm font-semibold text-gray-800 hover:text-indigo-600 text-left leading-tight flex-1 min-w-0"
                   onClick={() => navigate(`/voluntario/${v.id}`)}
                 >
                   {v.name}
@@ -96,16 +161,25 @@ function VolunteerTable({
                   {days === 0 ? 'Hoje' : `${days}d`}
                 </span>
               </div>
-              <div className="flex items-center gap-2 mb-3">
-                {v.subArea && (
+              <div className="flex items-center gap-2 mb-3 flex-wrap pl-6">
+                {v.subArea ? (
                   <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">
                     {v.subArea}
                   </span>
+                ) : v.coordinator ? (
+                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                    Em contato: {v.coordinator}
+                  </span>
+                ) : (
+                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">Sem área</span>
                 )}
                 <JourneyBadge stage={v.currentStage} size="sm" />
+                {v.howFound && (
+                  <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">{v.howFound}</span>
+                )}
               </div>
-              <div className="flex gap-2">
-                <WaButton phone={v.phone} name={v.name} onClick={() => onMarkContacted(v.id)} />
+              <div className="flex gap-2 pl-6">
+                <WaButton phone={v.phone} message={buildTemplate(v.currentStage, v, ministryName, senderName)} onClick={() => onMarkContacted(v.id)} />
                 <button
                   onClick={() => onAdvanceStage(v.id)}
                   disabled={isLast}
@@ -125,20 +199,39 @@ function VolunteerTable({
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-xs text-gray-400 uppercase tracking-wider">
-                <th className="text-left px-5 py-3">Nome</th>
-                <th className="text-left px-5 py-3">Sub-área</th>
-                <th className="text-left px-5 py-3">Etapa</th>
-                <th className="text-left px-5 py-3">Último Contato</th>
-                <th className="text-left px-5 py-3">Ações</th>
+                <th className="px-4 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={() => toggleSelectAll(filteredIds)}
+                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    title="Selecionar todos"
+                  />
+                </th>
+                <th className="text-left px-4 py-3">Nome</th>
+                <th className="text-left px-4 py-3">Sub-área</th>
+                <th className="text-left px-4 py-3">Como chegou</th>
+                <th className="text-left px-4 py-3">Etapa</th>
+                <th className="text-left px-4 py-3">Último Contato</th>
+                <th className="text-left px-4 py-3">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.map(v => {
                 const days = getDaysSinceLastContact(v)
                 const isLast = STAGE_ORDER.indexOf(v.currentStage) === STAGE_ORDER.length - 1
+                const isSelected = selectedIds.has(v.id)
                 return (
-                  <tr key={v.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5">
+                  <tr key={v.id} className={`transition-colors ${isSelected ? 'bg-indigo-50/40' : 'hover:bg-gray-50'}`}>
+                    <td className="px-4 py-3.5">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(v.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </td>
+                    <td className="px-4 py-3.5">
                       <button
                         className="text-sm font-medium text-gray-800 hover:text-indigo-600 text-left"
                         onClick={() => navigate(`/voluntario/${v.id}`)}
@@ -146,20 +239,34 @@ function VolunteerTable({
                         {v.name}
                       </button>
                     </td>
-                    <td className="px-5 py-3.5">
-                      <span className="text-sm text-gray-600">{v.subArea}</span>
+                    <td className="px-4 py-3.5">
+                      {v.subArea ? (
+                        <span className="text-sm text-gray-600">{v.subArea}</span>
+                      ) : v.coordinator ? (
+                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 whitespace-nowrap">
+                          Em contato: {v.coordinator}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">Sem área</span>
+                      )}
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-4 py-3.5">
+                      {v.howFound
+                        ? <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">{v.howFound}</span>
+                        : <span className="text-xs text-gray-300 italic">—</span>
+                      }
+                    </td>
+                    <td className="px-4 py-3.5">
                       <JourneyBadge stage={v.currentStage} size="sm" />
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-4 py-3.5">
                       <span className={`text-sm font-medium ${days >= 14 ? 'text-red-600' : days >= 7 ? 'text-orange-500' : 'text-gray-600'}`}>
                         {days === 0 ? 'Hoje' : `${days} dias`}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-4 py-3.5">
                       <div className="flex gap-2">
-                        <WaButton phone={v.phone} name={v.name} onClick={() => onMarkContacted(v.id)} />
+                        <WaButton phone={v.phone} message={buildTemplate(v.currentStage, v, ministryName, senderName)} onClick={() => onMarkContacted(v.id)} />
                         <button
                           onClick={() => onAdvanceStage(v.id)}
                           disabled={isLast}
@@ -184,10 +291,14 @@ function VolunteerTable({
 // ─── Follow-up alerts ─────────────────────────────────────────────────────────
 function FollowUpAlerts({
   volunteers,
+  ministryName,
+  senderName,
   onMarkContacted,
   onAdvanceStage,
 }: {
   volunteers: Volunteer[]
+  ministryName: string
+  senderName: string
   onMarkContacted: (id: string) => void
   onAdvanceStage: (id: string) => void
 }) {
@@ -222,7 +333,7 @@ function FollowUpAlerts({
                 <p className="text-xs text-gray-400 mb-2">{v.subArea}</p>
               )}
               <div className="flex gap-2">
-                <WaButton phone={v.phone} name={v.name} onClick={() => onMarkContacted(v.id)} />
+                <WaButton phone={v.phone} message={buildTemplate(v.currentStage, v, ministryName, senderName)} onClick={() => onMarkContacted(v.id)} />
                 <button
                   onClick={() => onAdvanceStage(v.id)}
                   disabled={isLast}
@@ -273,13 +384,13 @@ function ManageSubAreasModal({
   const ministry = ministries.find(m => m.id === ministryId)
   const [saving, setSaving] = useState(false)
   const [subAreas, setSubAreas] = useState(
-    ministry?.subAreas.map(s => ({ id: s.id, name: s.name, coordinator: s.coordinator })) ?? []
+    ministry?.subAreas.map(s => ({ id: s.id, name: s.name, coordinator: s.coordinator, coordinatorNames: s.coordinatorNames })) ?? []
   )
 
-  const addRow = () => setSubAreas(prev => [...prev, { id: '', name: '', coordinator: '' }])
+  const addRow = () => setSubAreas(prev => [...prev, { id: '', name: '', coordinator: '', coordinatorNames: [] }])
   const removeRow = (i: number) => setSubAreas(prev => prev.filter((_, idx) => idx !== i))
-  const update = (i: number, field: 'name' | 'coordinator', val: string) =>
-    setSubAreas(prev => prev.map((row, idx) => idx === i ? { ...row, [field]: val } : row))
+  const update = (i: number, val: string) =>
+    setSubAreas(prev => prev.map((row, idx) => idx === i ? { ...row, name: val } : row))
 
   const save = async () => {
     setSaving(true)
@@ -306,20 +417,23 @@ function ManageSubAreasModal({
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-3">
           {subAreas.map((s, i) => (
-            <div key={i} className="flex gap-2 items-center">
-              <input
-                value={s.name}
-                onChange={e => update(i, 'name', e.target.value)}
-                placeholder="Nome da sub-área"
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-              />
-              <input
-                value={s.coordinator}
-                onChange={e => update(i, 'coordinator', e.target.value)}
-                placeholder="Coordenador"
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-              />
-              <button onClick={() => removeRow(i)} className="text-gray-300 hover:text-red-500 p-1">
+            <div key={i} className="flex gap-2 items-start">
+              <div className="flex-1">
+                <input
+                  value={s.name}
+                  onChange={e => update(i, e.target.value)}
+                  placeholder="Nome da sub-área"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                />
+                {s.coordinatorNames.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5 px-1">
+                    {s.coordinatorNames.map(n => (
+                      <span key={n} className="bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{n}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button onClick={() => removeRow(i)} className="text-gray-300 hover:text-red-500 p-1 mt-1">
                 <Trash2 size={15} />
               </button>
             </div>
@@ -738,22 +852,45 @@ export default function MeuMinisterio() {
   // Resolve coordinator's assigned sub-areas (IDs → objects) using ministry data.
   // volunteers.sub_area stores the sub-area *name* (set at registration), while
   // user_profiles.sub_areas stores sub-area *IDs* (slugs) — so we map through names.
+  //
+  // Robustness: legacy data may have double-prefixed IDs (e.g. "com_com_foto")
+  // while the DB stores "com_foto". We normalise both sides by stripping the
+  // ministry-id prefix once before comparing.
+  const stripPrefix = (ministryId: string, id: string) => {
+    const prefix = ministryId + '_'
+    let s = id
+    while (s.startsWith(prefix)) s = s.slice(prefix.length)
+    return s
+  }
+  const profileSubAreaBases = (profile?.sub_areas ?? []).map(id =>
+    profile?.ministry_id ? stripPrefix(profile.ministry_id, id) : id
+  )
   const mySubAreas = isCoordinator
-    ? (ministry?.subAreas ?? []).filter(sa => (profile?.sub_areas ?? []).includes(sa.id))
+    ? (ministry?.subAreas ?? []).filter(sa => {
+        const base = profile?.ministry_id ? stripPrefix(profile.ministry_id, sa.id) : sa.id
+        return (profile?.sub_areas ?? []).includes(sa.id) || profileSubAreaBases.includes(base)
+      })
     : []
   const mySubAreaNames = mySubAreas.map(sa => sa.name)
 
   // Scope volunteers by role
   const ministryVolunteers = volunteers.filter(v => v.ministryId === profile?.ministry_id)
   const myVolunteers = isCoordinator
-    // Coordinator sees: their assigned sub-areas + volunteers with no area yet (pending assignment)
-    ? volunteers.filter(v =>
-        v.ministryId === profile?.ministry_id &&
-        (v.subArea === '' || mySubAreaNames.includes(v.subArea))
-      )
+    // Coordinator sees:
+    //   1. Volunteers in their assigned sub-areas
+    //   2. Unassigned volunteers that nobody has claimed yet (coordinator === '')
+    //   3. Unassigned volunteers that THIS coordinator already claimed (coordinator === my name)
+    //      → prevents other coordinators from seeing them after claim
+    ? volunteers.filter(v => {
+        if (v.ministryId !== profile?.ministry_id) return false
+        if (mySubAreaNames.includes(v.subArea)) return true  // assigned to my area
+        if (v.subArea !== '') return false                   // assigned to another area
+        // Unassigned: show if unclaimed OR claimed by me
+        return v.coordinator === '' || v.coordinator === profile?.name
+      })
     : ministryVolunteers
 
-  // Unassigned = same ministry, no sub-area yet
+  // Unassigned = same ministry, no sub-area yet (and unclaimed or claimed by me)
   const unassignedVolunteers = isCoordinator
     ? myVolunteers.filter(v => v.subArea === '')
     : []
@@ -767,11 +904,24 @@ export default function MeuMinisterio() {
 
   const markContacted = async (id: string) => {
     const now = new Date().toISOString()
+    const vol = volunteers.find(v => v.id === id)
+
+    // If the volunteer has no sub-area yet, claim them so other coordinators
+    // won't also message them. Sets coordinator = my name → filters them out
+    // of other coordinators' unassigned panels in real-time.
+    const isClaiming = isCoordinator && vol?.subArea === '' && vol?.coordinator === '' && !!profile?.name
+    const myName = profile?.name ?? ''
+
     setVolunteers((prev: Volunteer[]) =>
-      prev.map(v => v.id === id ? { ...v, lastContactDate: now, alertDays: 0 } : v)
+      prev.map(v => v.id === id
+        ? { ...v, lastContactDate: now, alertDays: 0, ...(isClaiming ? { coordinator: myName } : {}) }
+        : v
+      )
     )
-    await supabase.from('volunteers').update({ last_contact_date: now }).eq('id', id)
-    showToast('Contato registrado!')
+    const updates: Record<string, unknown> = { last_contact_date: now }
+    if (isClaiming) updates.coordinator = myName
+    await supabase.from('volunteers').update(updates).eq('id', id)
+    showToast(isClaiming ? `Contato registrado! Voluntário assumido por ${myName}.` : 'Contato registrado!')
   }
 
   const advanceStage = async (id: string) => {
@@ -787,6 +937,14 @@ export default function MeuMinisterio() {
     await supabase.from('volunteers').update({ current_stage: nextStage, last_contact_date: now }).eq('id', id)
     await supabase.from('stage_history').insert({ volunteer_id: id, stage: nextStage, date: now })
     showToast('Etapa avançada!')
+  }
+
+  const bulkUpdateHowFound = async (ids: string[], value: string) => {
+    setVolunteers((prev: Volunteer[]) =>
+      prev.map(v => ids.includes(v.id) ? { ...v, howFound: value } : v)
+    )
+    await supabase.from('volunteers').update({ how_found: value }).in('id', ids)
+    showToast(`"${value}" aplicado a ${ids.length} voluntário${ids.length !== 1 ? 's' : ''}!`)
   }
 
   const moveToStage = async (volunteerId: string, targetStage: JourneyStage) => {
@@ -960,6 +1118,8 @@ export default function MeuMinisterio() {
                 {/* Follow-up alerts */}
                 <FollowUpAlerts
                   volunteers={displayedVolunteers}
+                  ministryName={ministry?.name ?? ''}
+                  senderName={profile?.name ?? ''}
                   onMarkContacted={markContacted}
                   onAdvanceStage={advanceStage}
                 />
@@ -974,8 +1134,11 @@ export default function MeuMinisterio() {
                 ) : (
                   <VolunteerTable
                     volunteers={displayedVolunteers}
+                    ministryName={ministry?.name ?? ''}
+                    senderName={profile?.name ?? ''}
                     onMarkContacted={markContacted}
                     onAdvanceStage={advanceStage}
+                    onBulkUpdateHowFound={bulkUpdateHowFound}
                   />
                 )}
               </div>
@@ -1010,14 +1173,19 @@ export default function MeuMinisterio() {
 
                 <FollowUpAlerts
                   volunteers={displayedVolunteers}
+                  ministryName={ministry?.name ?? ''}
+                  senderName={profile?.name ?? ''}
                   onMarkContacted={markContacted}
                   onAdvanceStage={advanceStage}
                 />
 
                 <VolunteerTable
                   volunteers={displayedVolunteers}
+                  ministryName={ministry?.name ?? ''}
+                  senderName={profile?.name ?? ''}
                   onMarkContacted={markContacted}
                   onAdvanceStage={advanceStage}
+                  onBulkUpdateHowFound={bulkUpdateHowFound}
                 />
               </div>
             )}
@@ -1044,8 +1212,8 @@ export default function MeuMinisterio() {
                       <div key={sa.id} className="flex items-center justify-between px-6 py-3">
                         <div>
                           <p className="text-sm font-medium text-gray-800">{sa.name}</p>
-                          {sa.coordinator && (
-                            <p className="text-xs text-gray-400 mt-0.5">Coord.: {sa.coordinator}</p>
+                          {sa.coordinatorNames.length > 0 && (
+                            <p className="text-xs text-gray-400 mt-0.5">{sa.coordinatorNames.join(', ')}</p>
                           )}
                         </div>
                         <span className="text-xs text-gray-400">

@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Camera, Music, Baby, Zap, Heart, Home,
-  Bell, Menu, X, AlertTriangle, Settings, LogOut, ShieldCheck, User, TrendingUp, HelpCircle, Headphones, Search,
+  Bell, Menu, X, AlertTriangle, Settings, LogOut, ShieldCheck, User, TrendingUp, HelpCircle, Headphones,
   Star, Shield, BookOpen, Globe, Users, Cross, Mic, Film, Radio, Tv, Volume2,
   Car, Coffee, Megaphone, Flame, Waves, Gift, Monitor, Flower2, Utensils, Bus, Paintbrush, HandHeart, Scissors, Smile, Church,
 } from 'lucide-react';
@@ -11,6 +11,7 @@ import { getDaysSinceLastContact } from '../data/volunteers';
 import { useVolunteers } from '../hooks/useVolunteers';
 import { useAuth } from '../contexts/AuthContext';
 import ProfileModal from './ProfileModal';
+import { GlobalSearchTrigger } from './GlobalSearch';
 
 const iconMap: Record<string, React.ReactNode> = {
   Camera: <Camera size={18} />, Music: <Music size={18} />, Baby: <Baby size={18} />,
@@ -66,32 +67,12 @@ function SideLink({
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [globalSearch, setGlobalSearch] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { profile, isAdmin, isSuperAdmin, isLeader, signOut } = useAuth();
   const { ministries } = useMinistries();
   const { volunteers: allVolunteers } = useVolunteers();
   const alertCount = allVolunteers.filter(v => getDaysSinceLastContact(v) >= 7).length;
 
-  const searchResults = globalSearch.trim().length >= 2
-    ? allVolunteers.filter(v =>
-        v.name.toLowerCase().includes(globalSearch.toLowerCase()) ||
-        v.phone.includes(globalSearch) ||
-        v.subArea.toLowerCase().includes(globalSearch.toLowerCase())
-      ).slice(0, 8)
-    : [];
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setSearchOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
 
 
   return (
@@ -235,37 +216,9 @@ export default function Layout({ children }: LayoutProps) {
               <p className="font-semibold text-sm" style={{ color: 'var(--text-secondary)' }}>Pulse Ministérios</p>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Lagoinha Osasco</p>
             </div>
-            {/* Global search */}
-            <div ref={searchRef} className="relative flex-1 max-w-sm ml-2">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Buscar voluntário..."
-                value={globalSearch}
-                onChange={e => { setGlobalSearch(e.target.value); setSearchOpen(true); }}
-                onFocus={() => setSearchOpen(true)}
-                className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                style={{ backgroundColor: 'var(--body-bg)', borderColor: 'var(--header-border)', color: 'var(--text-primary)' }}
-              />
-              {searchOpen && searchResults.length > 0 && (
-                <div className="absolute top-full mt-1 left-0 right-0 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
-                  {searchResults.map(v => (
-                    <button
-                      key={v.id}
-                      className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3 transition-colors"
-                      onClick={() => { navigate(`/voluntario/${v.id}`); setSearchOpen(false); setGlobalSearch(''); }}
-                    >
-                      <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-bold flex-shrink-0">
-                        {v.name[0]}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{v.name}</p>
-                        <p className="text-xs text-gray-400 truncate">{v.subArea}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+            {/* Global search trigger */}
+            <div className="ml-2">
+              <GlobalSearchTrigger />
             </div>
           </div>
 

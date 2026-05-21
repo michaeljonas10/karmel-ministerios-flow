@@ -119,6 +119,7 @@ interface FormData {
   sub_area: string;
   attends_church: string;
   has_experience: string;
+  participates_gc: string;
   notes: string;
   coordinator?: string;
 }
@@ -126,7 +127,10 @@ interface FormData {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function CadastroVoluntario() {
   usePageTitle('Cadastro de Voluntário')
-  const { ministries } = useMinistries();
+  const { ministries, refetch: refetchMinistries } = useMinistries();
+
+  // Ensure ministry/sub-area list is fresh when the form loads
+  useEffect(() => { refetchMinistries(); }, []);
   const [searchParams] = useSearchParams();
   const preMinistry = searchParams.get('ministerio') || '';
   const preCoordinator = searchParams.get('coordenador') || '';
@@ -145,6 +149,7 @@ export default function CadastroVoluntario() {
     sub_area: '',
     attends_church: '',
     has_experience: '',
+    participates_gc: '',
     notes: '',
     coordinator: preCoordinator,
   });
@@ -184,10 +189,13 @@ export default function CadastroVoluntario() {
 
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
-    const coordinator = selectedMinistry?.coordinators[0] || '';
-
     const subAreaObj = selectedMinistry?.subAreas.find(s => s.name === form.sub_area);
-    const subAreaCoord = subAreaObj?.coordinator || coordinator;
+    // Prefer user-profile-assigned coordinator names, fall back to manual text, then ministry-level
+    const subAreaCoord =
+      subAreaObj?.coordinatorNames?.[0] ||
+      subAreaObj?.coordinator ||
+      selectedMinistry?.coordinators[0] ||
+      '';
 
     const volunteerRow = {
       id,
@@ -200,6 +208,7 @@ export default function CadastroVoluntario() {
       coordinator: subAreaCoord,
       current_stage: 'cadastrado',
       how_found: form.how_found || null,
+      participates_gc: form.participates_gc === 'Sim' ? true : form.participates_gc === 'Não' ? false : null,
       notes: [
         form.notes,
         `Frequenta: ${form.attends_church}`,
@@ -352,6 +361,24 @@ export default function CadastroVoluntario() {
                               value={opt}
                               checked={form.attends_church === opt}
                               onChange={set('attends_church')}
+                              className="accent-indigo-600"
+                            />
+                            <span className="text-sm text-gray-700">{opt}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </Field>
+
+                    <Field label="Participa de GC (Grupo de Células)?">
+                      <div className="flex gap-3">
+                        {['Sim', 'Não'].map(opt => (
+                          <label key={opt} className="flex-1 flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="participates_gc"
+                              value={opt}
+                              checked={form.participates_gc === opt}
+                              onChange={set('participates_gc')}
                               className="accent-indigo-600"
                             />
                             <span className="text-sm text-gray-700">{opt}</span>

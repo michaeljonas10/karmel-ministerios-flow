@@ -1,6 +1,12 @@
 {
   "alias": ["pulse-ministerios.vercel.app"],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/trigger-push",
+      "schedule": "0 11 * * *"
+    }
   ]
 }

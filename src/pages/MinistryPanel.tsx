@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { LayoutGrid, List, Search, Users, CheckSquare, Square, ChevronRight, Download, X } from 'lucide-react';
+import { LayoutGrid, List, Search, Users, CheckSquare, Square, ChevronRight, Download, X, Tag } from 'lucide-react';
 import { useMinistries } from '../contexts/MinistriesContext';
 import { getDaysSinceLastContact } from '../data/volunteers';
-import { STAGE_ORDER, STAGE_LABELS, OFF_TRACK_STAGES } from '../types';
+import { STAGE_ORDER, STAGE_LABELS, OFF_TRACK_STAGES, HOW_FOUND_OPTIONS } from '../types';
 import type { JourneyStage, Volunteer } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
 import VolunteerCard from '../components/VolunteerCard';
@@ -69,6 +69,8 @@ export default function MinistryPanel() {
   const [subAreaFilter, setSubAreaFilter] = useState<string>('all');
   const [periodFilter, setPeriodFilter] = useState<30 | 60 | 90 | 0>(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkHowFound, setBulkHowFound] = useState('');
+  const [bulkApplying, setBulkApplying] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<JourneyStage | null>(null);
   const { volunteers, loading, setVolunteers } = useVolunteers();
@@ -125,6 +127,17 @@ export default function MinistryPanel() {
   function toggleSelectAll() {
     setSelected(prev => prev.size === filtered.length ? new Set() : new Set(filtered.map(v => v.id)));
   }
+  async function bulkSetHowFound() {
+    if (!bulkHowFound || selected.size === 0) return;
+    setBulkApplying(true);
+    const ids = [...selected];
+    setVolunteers((prev: Volunteer[]) => prev.map(v => ids.includes(v.id) ? { ...v, howFound: bulkHowFound } : v));
+    await supabase.from('volunteers').update({ how_found: bulkHowFound }).in('id', ids);
+    setBulkApplying(false);
+    setSelected(new Set());
+    setBulkHowFound('');
+  }
+
   async function bulkAdvance() {
     for (const id of selected) {
       const v = volunteers.find(x => x.id === id);
@@ -257,7 +270,9 @@ export default function MinistryPanel() {
                   }`}
               >
                 <p className="text-sm font-semibold text-gray-800 leading-tight">{sa.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{sa.coordinator}</p>
+                {sa.coordinatorNames.length > 0 && (
+                  <p className="text-xs text-gray-400 mt-0.5 truncate">{sa.coordinatorNames.join(', ')}</p>
+                )}
                 <div className="flex items-center justify-between mt-3">
                   <div className="flex items-center gap-1.5">
                     <Users size={13} className="text-gray-400" />
@@ -339,21 +354,42 @@ export default function MinistryPanel() {
 
         {/* Bulk toolbar */}
         {selected.size > 0 && (
-          <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5">
-            <span className="text-sm font-medium text-indigo-700">{selected.size} selecionado{selected.size !== 1 ? 's' : ''}</span>
+          <div className="flex flex-wrap items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5">
+            <span className="text-sm font-medium text-indigo-700 flex-shrink-0">{selected.size} selecionado{selected.size !== 1 ? 's' : ''}</span>
             <button
               onClick={bulkAdvance}
-              className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors"
+              className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors flex-shrink-0"
             >
               <ChevronRight size={13} /> Avançar etapa
             </button>
+            {/* Como chegou bulk */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <Tag size={13} className="text-indigo-500" />
+              <select
+                value={bulkHowFound}
+                onChange={e => setBulkHowFound(e.target.value)}
+                className="border border-indigo-300 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              >
+                <option value="">Como chegou...</option>
+                {HOW_FOUND_OPTIONS.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+              <button
+                onClick={bulkSetHowFound}
+                disabled={!bulkHowFound || bulkApplying}
+                className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                {bulkApplying ? '...' : 'Aplicar'}
+              </button>
+            </div>
             <button
               onClick={exportCSV}
-              className="flex items-center gap-1.5 text-xs bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg font-medium transition-colors"
+              className="flex items-center gap-1.5 text-xs bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg font-medium transition-colors flex-shrink-0"
             >
               <Download size={13} /> Exportar seleção
             </button>
-            <button onClick={() => setSelected(new Set())} className="ml-auto text-indigo-400 hover:text-indigo-600">
+            <button onClick={() => { setSelected(new Set()); setBulkHowFound(''); }} className="ml-auto text-indigo-400 hover:text-indigo-600 flex-shrink-0">
               <X size={16} />
             </button>
           </div>
@@ -377,6 +413,7 @@ export default function MinistryPanel() {
                   <th className="text-left px-5 py-3">Nome</th>
                   <th className="text-left px-5 py-3">Área</th>
                   <th className="text-left px-5 py-3">Coordenador</th>
+                  <th className="text-left px-5 py-3">Como chegou</th>
                   <th className="text-left px-5 py-3">Etapa</th>
                   <th className="text-left px-5 py-3">Último Contato</th>
                   <th className="text-left px-5 py-3">Telefone</th>
@@ -404,6 +441,12 @@ export default function MinistryPanel() {
                       </td>
                       <td className="px-5 py-3.5">
                         <span className="text-sm text-gray-600">{v.coordinator}</span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {v.howFound
+                          ? <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">{v.howFound}</span>
+                          : <span className="text-xs text-gray-300">—</span>
+                        }
                       </td>
                       <td className="px-5 py-3.5">
                         <JourneyBadge stage={v.currentStage} size="sm" />
