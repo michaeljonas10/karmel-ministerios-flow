@@ -1538,11 +1538,9 @@ function TabAcessos() {
 
   useEffect(() => {
     supabase
-      .from('login_log')
-      .select('*')
-      .order('logged_in_at', { ascending: false })
-      .limit(200)
-      .then(({ data }) => {
+      .rpc('get_login_log', { p_limit: 200 })
+      .then(({ data, error }) => {
+        if (error) console.warn('[login_log read]', error.message);
         if (data) setLogs(data as LoginEntry[]);
         setLoading(false);
       });
@@ -1728,14 +1726,17 @@ const ALL_TABS: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boo
 
 export default function Configuracoes() {
   usePageTitle('Configurações')
-  const { isAdmin, isSuperAdmin } = useAuth();
+  const { profile, isAdmin, isSuperAdmin } = useAuth();
   const { ministries } = useMinistries();
   const [activeTab, setActiveTab] = useState<Tab>('igreja');
   const [toast, setToast] = useState('');
 
+  // Derivar diretamente do profile para garantir consistência
+  const effectiveSuperAdmin = isSuperAdmin || profile?.role === 'super_admin';
+
   const showToast = (msg: string) => setToast(msg);
   const TABS = ALL_TABS.filter(t =>
-    (!t.adminOnly || isAdmin) && (!t.superAdminOnly || isSuperAdmin)
+    (!t.adminOnly || isAdmin) && (!t.superAdminOnly || effectiveSuperAdmin)
   );
 
   return (
@@ -1778,7 +1779,7 @@ export default function Configuracoes() {
         {activeTab === 'aparencia' && <TabAparencia />}
         {activeTab === 'automacoes' && isAdmin && <TabAutomacoes ministries={ministries} onToast={showToast} />}
         {activeTab === 'notificacoes' && <TabNotificacoes />}
-        {activeTab === 'acessos' && isSuperAdmin && <TabAcessos />}
+        {activeTab === 'acessos' && effectiveSuperAdmin && <TabAcessos />}
       </div>
 
       {toast && <Toast message={toast} onClose={() => setToast('')} />}
