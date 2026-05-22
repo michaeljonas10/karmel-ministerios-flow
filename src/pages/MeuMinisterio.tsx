@@ -43,6 +43,7 @@ function VolunteerTable({
   onMarkContacted,
   onAdvanceStage,
   onBulkUpdateHowFound,
+  onBulkUpdateGc,
 }: {
   volunteers: Volunteer[]
   ministryName: string
@@ -50,23 +51,34 @@ function VolunteerTable({
   onMarkContacted: (id: string) => void
   onAdvanceStage: (id: string) => void
   onBulkUpdateHowFound?: (ids: string[], value: string) => Promise<void>
+  onBulkUpdateGc?: (ids: string[], value: boolean | null) => Promise<void>
 }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkHowFound, setBulkHowFound] = useState('')
+  const [bulkGc, setBulkGc] = useState('')
   const [bulkApplying, setBulkApplying] = useState(false)
 
   const toggleSelect = (id: string) =>
     setSelectedIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
   const toggleSelectAll = (ids: string[]) =>
     setSelectedIds(prev => prev.size === ids.length ? new Set() : new Set(ids))
-  const clearSelection = () => { setSelectedIds(new Set()); setBulkHowFound('') }
+  const clearSelection = () => { setSelectedIds(new Set()); setBulkHowFound(''); setBulkGc('') }
 
-  const applyBulk = async () => {
+  const applyBulkHowFound = async () => {
     if (!bulkHowFound || selectedIds.size === 0 || !onBulkUpdateHowFound) return
     setBulkApplying(true)
     await onBulkUpdateHowFound([...selectedIds], bulkHowFound)
+    setBulkApplying(false)
+    clearSelection()
+  }
+
+  const applyBulkGc = async () => {
+    if (!bulkGc || selectedIds.size === 0 || !onBulkUpdateGc) return
+    setBulkApplying(true)
+    const val = bulkGc === 'sim' ? true : bulkGc === 'nao' ? false : null
+    await onBulkUpdateGc([...selectedIds], val)
     setBulkApplying(false)
     clearSelection()
   }
@@ -93,7 +105,8 @@ function VolunteerTable({
           <span className="text-sm font-medium text-indigo-700 flex-shrink-0">
             {selectedIds.size} selecionado{selectedIds.size !== 1 ? 's' : ''}
           </span>
-          <div className="flex items-center gap-2 flex-1 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap flex-1">
+            {/* Como chegou */}
             <div className="flex items-center gap-1.5">
               <Tag size={14} className="text-indigo-500 flex-shrink-0" />
               <select
@@ -106,14 +119,35 @@ function VolunteerTable({
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
+              <button
+                onClick={applyBulkHowFound}
+                disabled={!bulkHowFound || bulkApplying}
+                className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-indigo-700 transition-colors"
+              >
+                {bulkApplying ? '...' : 'Aplicar'}
+              </button>
             </div>
-            <button
-              onClick={applyBulk}
-              disabled={!bulkHowFound || bulkApplying}
-              className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-indigo-700 transition-colors"
-            >
-              {bulkApplying ? 'Aplicando...' : 'Aplicar'}
-            </button>
+            {/* GC */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-indigo-500 font-medium flex-shrink-0">GC</span>
+              <select
+                value={bulkGc}
+                onChange={e => setBulkGc(e.target.value)}
+                className="border border-indigo-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+              >
+                <option value="">Participa GC...</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
+                <option value="sem_info">Sem info</option>
+              </select>
+              <button
+                onClick={applyBulkGc}
+                disabled={!bulkGc || bulkApplying}
+                className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-indigo-700 transition-colors"
+              >
+                {bulkApplying ? '...' : 'Aplicar'}
+              </button>
+            </div>
           </div>
           <button onClick={clearSelection} className="text-indigo-400 hover:text-indigo-600 flex-shrink-0"><X size={16} /></button>
         </div>
@@ -839,7 +873,9 @@ export default function MeuMinisterio() {
   const { volunteers, loading: volLoading, setVolunteers } = useVolunteers()
   const { ministries, loading: minLoading } = useMinistries()
   const [toast, setToast] = useState('')
-  const [activeTab, setActiveTab] = useState<'overview' | 'manage'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'manage' | 'archived'>('overview')
+  const [archivedVolunteers, setArchivedVolunteers] = useState<Volunteer[]>([])
+  const [archivedLoading, setArchivedLoading] = useState(false)
   const [subAreaFilter, setSubAreaFilter] = useState<string>('all')
   const [coordView, setCoordView] = useState<'table' | 'kanban'>('table')
   const [showSubAreaModal, setShowSubAreaModal] = useState(false)
@@ -947,6 +983,46 @@ export default function MeuMinisterio() {
     showToast(`"${value}" aplicado a ${ids.length} voluntário${ids.length !== 1 ? 's' : ''}!`)
   }
 
+  const bulkUpdateGc = async (ids: string[], value: boolean | null) => {
+    setVolunteers((prev: Volunteer[]) =>
+      prev.map(v => ids.includes(v.id) ? { ...v, participatesGc: value ?? undefined } : v)
+    )
+    await supabase.from('volunteers').update({ participates_gc: value }).in('id', ids)
+    const label = value === true ? 'Sim' : value === false ? 'Não' : 'Sem info'
+    showToast(`GC "${label}" aplicado a ${ids.length} voluntário${ids.length !== 1 ? 's' : ''}!`)
+  }
+
+  const loadArchived = async () => {
+    if (!ministry) return
+    setArchivedLoading(true)
+    const { data } = await supabase
+      .from('volunteers')
+      .select('*')
+      .eq('ministry_id', ministry.id)
+      .not('archived_at', 'is', null)
+      .order('archived_at', { ascending: false })
+    if (data) {
+      setArchivedVolunteers(data.map(v => ({
+        id: v.id, name: v.name, phone: v.phone || '',
+        email: v.email ?? undefined, registeredAt: v.registered_at,
+        ministryId: v.ministry_id, subArea: v.sub_area || '',
+        coordinator: v.coordinator || '', currentStage: v.current_stage as Volunteer['currentStage'],
+        stageHistory: [], notes: v.notes || '', howFound: v.how_found ?? undefined,
+        participatesGc: v.participates_gc ?? undefined,
+        archivedAt: v.archived_at, lastContactDate: v.last_contact_date,
+        alertDays: v.alert_days ?? undefined, birthday: v.birthday ?? undefined,
+        contactAttempts: v.contact_attempts ?? 0,
+      })))
+    }
+    setArchivedLoading(false)
+  }
+
+  const unarchiveVolunteer = async (id: string) => {
+    await supabase.from('volunteers').update({ archived_at: null }).eq('id', id)
+    setArchivedVolunteers(prev => prev.filter(v => v.id !== id))
+    showToast('Voluntário reativado!')
+  }
+
   const moveToStage = async (volunteerId: string, targetStage: JourneyStage) => {
     const vol = volunteers.find(v => v.id === volunteerId)
     if (!vol || vol.currentStage === targetStage) return
@@ -1018,15 +1094,21 @@ export default function MeuMinisterio() {
             <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
               <button
                 onClick={() => setActiveTab('overview')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'overview' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'overview' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Visão Geral
               </button>
               <button
                 onClick={() => setActiveTab('manage')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'manage' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'manage' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Gerenciar
+              </button>
+              <button
+                onClick={() => { setActiveTab('archived'); loadArchived() }}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'archived' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Arquivados
               </button>
             </div>
           </div>
@@ -1139,6 +1221,7 @@ export default function MeuMinisterio() {
                     onMarkContacted={markContacted}
                     onAdvanceStage={advanceStage}
                     onBulkUpdateHowFound={bulkUpdateHowFound}
+                    onBulkUpdateGc={bulkUpdateGc}
                   />
                 )}
               </div>
@@ -1186,7 +1269,68 @@ export default function MeuMinisterio() {
                   onMarkContacted={markContacted}
                   onAdvanceStage={advanceStage}
                   onBulkUpdateHowFound={bulkUpdateHowFound}
+                  onBulkUpdateGc={bulkUpdateGc}
                 />
+              </div>
+            )}
+
+            {/* ── ARCHIVED tab (leader only) ── */}
+            {activeTab === 'archived' && isLeader && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-semibold text-gray-700">
+                    {archivedLoading ? 'Carregando...' : `${archivedVolunteers.length} arquivado${archivedVolunteers.length !== 1 ? 's' : ''}`}
+                  </h2>
+                </div>
+                {archivedLoading ? (
+                  <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Carregando...</div>
+                ) : archivedVolunteers.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                    <Users size={32} className="mb-2 opacity-40" />
+                    <p className="text-sm">Nenhum voluntário arquivado.</p>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 border-b border-gray-100">
+                          <tr className="text-xs text-gray-400 uppercase tracking-wider">
+                            <th className="text-left px-5 py-3">Nome</th>
+                            <th className="text-left px-5 py-3 hidden sm:table-cell">Sub-área</th>
+                            <th className="text-left px-5 py-3 hidden sm:table-cell">Arquivado em</th>
+                            <th className="px-5 py-3"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {archivedVolunteers.map(v => (
+                            <tr key={v.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-5 py-3.5">
+                                <p className="text-sm font-medium text-gray-800">{v.name}</p>
+                                <p className="text-xs text-gray-400">{v.phone}</p>
+                              </td>
+                              <td className="px-5 py-3.5 hidden sm:table-cell">
+                                <span className="text-sm text-gray-500">{v.subArea || '—'}</span>
+                              </td>
+                              <td className="px-5 py-3.5 hidden sm:table-cell">
+                                <span className="text-sm text-gray-400 tabular-nums">
+                                  {v.archivedAt ? new Date(v.archivedAt).toLocaleDateString('pt-BR') : '—'}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3.5 text-right">
+                                <button
+                                  onClick={() => unarchiveVolunteer(v.id)}
+                                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                >
+                                  Reativar
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

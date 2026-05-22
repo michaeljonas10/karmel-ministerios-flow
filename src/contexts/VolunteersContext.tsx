@@ -104,12 +104,18 @@ export function VolunteersProvider({ children }: { children: ReactNode }) {
             setVolunteers(prev => prev.filter(v => v.id !== (payload.old as { id: string }).id))
             return
           }
+          // Se foi arquivado, remove da lista ativa
+          if ((payload.new as Record<string, unknown>).archived_at) {
+            setVolunteers(prev => prev.filter(v => v.id !== (payload.new as { id: string }).id))
+            return
+          }
           const updated = await fetchOneVolunteer((payload.new as { id: string }).id)
           if (!updated) return
           setVolunteers(prev => {
             const idx = prev.findIndex(v => v.id === updated.id)
             if (idx >= 0) return prev.map((v, i) => i === idx ? updated : v)
-            return [updated, ...prev]
+            // INSERT de novo voluntário (ex: desarquivado) — inclui se sem archived_at
+            return updated.archivedAt ? prev : [updated, ...prev]
           })
         }
       )

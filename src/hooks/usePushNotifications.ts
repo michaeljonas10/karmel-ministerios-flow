@@ -22,7 +22,9 @@ export function usePushNotifications(userId?: string) {
     if (Notification.permission === 'denied') {
       setState('denied'); return
     }
-    navigator.serviceWorker.ready.then(async (reg) => {
+    // getRegistration não fica pendurado se não houver SW ativo
+    navigator.serviceWorker.getRegistration('/sw.js').then(async (reg) => {
+      if (!reg) { setState('unsubscribed'); return }
       const sub = await reg.pushManager.getSubscription()
       setState(sub ? 'subscribed' : 'unsubscribed')
     }).catch(() => setState('unsubscribed'))
