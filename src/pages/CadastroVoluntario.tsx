@@ -173,9 +173,18 @@ export default function CadastroVoluntario() {
 
   const selectedMinistry = ministries.find(m => m.id === form.ministry_id);
 
+  // Mostrar step de plataformas apenas para o ministério Follow / Comunicação
+  const isFollowMinistry = selectedMinistry
+    ? /follow|comunicaç|comunicac|mídia|midia/i.test(selectedMinistry.name) ||
+      /follow|comunicac|midia/i.test(selectedMinistry.id)
+    : false;
+  const totalSteps = isFollowMinistry ? 3 : 2;
+
   // Reset sub_area when ministry changes
   useEffect(() => {
-    setForm(prev => ({ ...prev, sub_area: '' }));
+    setForm(prev => ({ ...prev, sub_area: '', platforms: [] }));
+    // Se mudou para ministério sem step 3 e estava no step 3, volta para step 2
+    if (step === 3) setStep(2);
   }, [form.ministry_id]);
 
   // Step validations
@@ -287,7 +296,7 @@ export default function CadastroVoluntario() {
               <SuccessScreen name={form.name.split(' ')[0]} />
             ) : (
               <>
-                <StepIndicator current={step} total={3} onGoTo={s => setStep(s)} />
+                <StepIndicator current={step} total={totalSteps} onGoTo={s => setStep(s)} />
 
                 {/* ── Step 1 ── */}
                 {step === 1 && (
@@ -521,13 +530,23 @@ export default function CadastroVoluntario() {
                   >
                     <ChevronLeft size={16} /> Voltar
                   </button>
-                  <button
-                    onClick={() => setStep(3)}
-                    disabled={!step2Valid}
-                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white px-6 py-3.5 rounded-xl text-sm font-semibold transition-colors"
-                  >
-                    Continuar <ChevronRight size={16} />
-                  </button>
+                  {isFollowMinistry ? (
+                    <button
+                      onClick={() => setStep(3)}
+                      disabled={!step2Valid}
+                      className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white px-6 py-3.5 rounded-xl text-sm font-semibold transition-colors"
+                    >
+                      Continuar <ChevronRight size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={submitForm}
+                      disabled={!step2Valid || submitting}
+                      className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white px-6 py-3.5 rounded-xl text-sm font-semibold transition-colors"
+                    >
+                      {submitting ? 'Enviando...' : <>Confirmar Cadastro <Check size={16} /></>}
+                    </button>
+                  )}
                 </div>
               )}
               {step === 3 && (

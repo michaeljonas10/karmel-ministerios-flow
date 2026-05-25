@@ -1,22 +1,34 @@
 export const HOW_FOUND_OPTIONS: string[] = ['Integra', 'Culto Visão', 'App da Igreja', 'Indicação de Membro', 'Já sou voluntário'];
 
-// Plataformas/ferramentas técnicas agrupadas por categoria
+// Plataformas/ferramentas técnicas agrupadas por categoria (Follow / Comunicação)
 export const PLATFORM_GROUPS: { label: string; items: string[] }[] = [
   {
-    label: 'Design',
-    items: ['Canva', 'Photoshop', 'Illustrator', 'Figma', 'CorelDRAW'],
+    label: 'Design Gráfico',
+    items: ['Canva', 'Photoshop', 'Illustrator', 'Figma', 'CorelDRAW', 'InDesign'],
   },
   {
     label: 'Vídeo & Edição',
     items: ['Premiere Pro', 'DaVinci Resolve', 'After Effects', 'Final Cut Pro', 'CapCut'],
   },
   {
-    label: 'Captação',
-    items: ['Fotografia', 'Captação de Vídeo', 'OBS Studio', 'StreamLabs'],
+    label: 'Fotografia & Captação',
+    items: ['Fotografia', 'Captação de Vídeo', 'Drone', 'Lightroom'],
   },
   {
-    label: 'Outros',
-    items: ['PowerPoint / Slides', 'Excel / Planilhas', 'WordPress', 'Redes Sociais'],
+    label: 'Som & Áudio',
+    items: ['Operação de Mesa de Som', 'ProTools', 'Ableton', 'Logic Pro', 'Audacity'],
+  },
+  {
+    label: 'Projeção & Iluminação',
+    items: ['ProPresenter', 'Resolume', 'Iluminação Cênica', 'Millumin'],
+  },
+  {
+    label: 'Streaming',
+    items: ['OBS Studio', 'StreamLabs', 'vMix', 'Wirecast'],
+  },
+  {
+    label: 'Redes Sociais & Conteúdo',
+    items: ['Instagram / Reels', 'TikTok', 'YouTube', 'Copywriting / Legendas', 'WordPress'],
   },
 ];
 
