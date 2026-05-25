@@ -236,13 +236,14 @@ export default function VolunteerDetail() {
     const updates: Record<string, string | null> = { [dbField]: trimmed || null };
 
     if (editField === 'subArea') {
-      const newCoordinator = ministry?.subAreas.find(sa => sa.name === trimmed)?.coordinator;
-      if (newCoordinator) {
-        updates.coordinator = newCoordinator;
-        setVolunteer(v => v ? { ...v, subArea: trimmed, coordinator: newCoordinator } : v);
-      } else {
-        setVolunteer(v => v ? { ...v, [editField]: trimmed } : v);
-      }
+      const subAreaObj = ministry?.subAreas.find(sa => sa.name === trimmed);
+      // Prioriza coordenador real (user_profiles), cai para legacy freetext, depois vazio
+      const newCoordinator =
+        subAreaObj?.coordinatorNames?.[0] ??
+        subAreaObj?.coordinator ??
+        '';
+      updates.coordinator = newCoordinator;
+      setVolunteer(v => v ? { ...v, subArea: trimmed, coordinator: newCoordinator } : v);
     } else if (editField === 'birthday') {
       setVolunteer(v => v ? { ...v, birthday: trimmed || undefined } : v);
     } else if (editField === 'howFound') {
