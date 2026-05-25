@@ -116,6 +116,7 @@ const selectCls = `${inputCls} bg-white`;
 interface FormData {
   name: string;
   phone: string;
+  birthday: string;
   email: string;
   how_found: string;
   ministry_id: string;
@@ -147,6 +148,7 @@ export default function CadastroVoluntario() {
   const [form, setForm] = useState<FormData>({
     name: '',
     phone: '',
+    birthday: '',
     email: '',
     how_found: '',
     ministry_id: preMinistry,
@@ -231,6 +233,7 @@ export default function CadastroVoluntario() {
       sub_area: form.sub_area,
       coordinator: subAreaCoord,
       current_stage: 'cadastrado',
+      birthday: form.birthday || null,
       how_found: form.how_found || null,
       participates_gc: form.participates_gc === 'Sim' ? true : form.participates_gc === 'Não' ? false : null,
       notes: [
@@ -321,6 +324,16 @@ export default function CadastroVoluntario() {
                         onChange={e => setForm(prev => ({ ...prev, phone: maskPhone(e.target.value) }))}
                         placeholder="(31) 9 0000-0000"
                         className={inputCls}
+                      />
+                    </Field>
+
+                    <Field label="Data de Aniversário">
+                      <input
+                        type="date"
+                        value={form.birthday}
+                        onChange={set('birthday')}
+                        className={inputCls}
+                        max={new Date().toISOString().slice(0, 10)}
                       />
                     </Field>
 

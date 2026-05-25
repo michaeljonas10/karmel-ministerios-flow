@@ -1055,7 +1055,7 @@ export default function MeuMinisterio() {
     function Inner() {
       const availableSubAreas = isCoordinator ? mySubAreas : (ministry?.subAreas ?? [])
       const [form, setForm] = useState({
-        name: '', phone: '', email: '', sub_area: availableSubAreas[0]?.name ?? '',
+        name: '', phone: '', birthday: '', email: '', sub_area: availableSubAreas[0]?.name ?? '',
         attends_church: '', has_experience: '', participates_gc: '', notes: '',
       })
       const [submitting, setSubmitting] = useState(false)
@@ -1096,7 +1096,7 @@ export default function MeuMinisterio() {
         const { error: vErr } = await supabase.from('volunteers').insert({
           id, name: form.name.trim(), phone: form.phone, email: form.email || null,
           registered_at: now, ministry_id: ministry.id, sub_area: form.sub_area,
-          coordinator, current_stage: 'cadastrado',
+          coordinator, current_stage: 'cadastrado', birthday: form.birthday || null,
           participates_gc: form.participates_gc === 'Sim' ? true : form.participates_gc === 'Não' ? false : null,
           notes, last_contact_date: now,
         })
@@ -1147,6 +1147,10 @@ export default function MeuMinisterio() {
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">WhatsApp *</label>
                 <input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: maskPhone(e.target.value) }))} placeholder="(00) 9 0000-0000" className={inputCls} type="tel" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Data de Aniversário</label>
+                <input value={form.birthday} onChange={e => setForm(p => ({ ...p, birthday: e.target.value }))} className={inputCls} type="date" max={new Date().toISOString().slice(0, 10)} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Email</label>
