@@ -44,25 +44,27 @@ function ChurchHeader() {
 }
 
 // ─── Progress indicator ───────────────────────────────────────────────────────
-function StepIndicator({ current, total }: { current: number; total: number }) {
+function StepIndicator({ current, total, onGoTo }: { current: number; total: number; onGoTo?: (step: number) => void }) {
   return (
     <div className="flex items-center justify-center gap-2 mb-6">
       {Array.from({ length: total }, (_, i) => (
         <div key={i} className="flex items-center gap-2">
-          <div
+          <button
+            type="button"
+            onClick={() => i + 1 < current && onGoTo?.(i + 1)}
             className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
-              ${i + 1 < current ? 'bg-indigo-600 text-white' :
-                i + 1 === current ? 'bg-indigo-600 text-white ring-4 ring-indigo-200' :
-                'bg-gray-200 text-gray-400'}`}
+              ${i + 1 < current ? 'bg-indigo-600 text-white cursor-pointer hover:bg-indigo-700' :
+                i + 1 === current ? 'bg-indigo-600 text-white ring-4 ring-indigo-200 cursor-default' :
+                'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
           >
             {i + 1 < current ? <Check size={14} /> : i + 1}
-          </div>
+          </button>
           {i < total - 1 && (
             <div className={`w-8 h-0.5 ${i + 1 < current ? 'bg-indigo-600' : 'bg-gray-200'}`} />
           )}
         </div>
       ))}
-      <span className="ml-2 text-sm text-gray-500 font-medium">Etapa {current} de {total}</span>
+      <span className="ml-2 text-sm text-gray-500 font-medium">Passo {current} de {total}</span>
     </div>
   );
 }
@@ -259,13 +261,13 @@ export default function CadastroVoluntario() {
         </div>
 
         {/* Card */}
-        <div className="w-full max-w-lg mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden">
-          <div className="p-6 sm:p-8">
+        <div className="w-full max-w-lg mx-auto bg-white rounded-2xl shadow-2xl">
+          <div className="p-6 sm:p-8 pb-4">
             {submitted ? (
               <SuccessScreen name={form.name.split(' ')[0]} />
             ) : (
               <>
-                <StepIndicator current={step} total={2} />
+                <StepIndicator current={step} total={2} onGoTo={s => setStep(s)} />
 
                 {/* ── Step 1 ── */}
                 {step === 1 && (
@@ -312,14 +314,6 @@ export default function CadastroVoluntario() {
                         <option value="Indicação de Membro">Indicação de Membro</option>
                       </select>
                     </Field>
-
-                    <button
-                      onClick={() => setStep(2)}
-                      disabled={!step1Valid}
-                      className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl text-sm font-semibold transition-colors mt-2"
-                    >
-                      Próxima Etapa <ChevronRight size={16} />
-                    </button>
                   </div>
                 )}
 
@@ -420,28 +414,46 @@ export default function CadastroVoluntario() {
                         {error}
                       </div>
                     )}
-
-                    <div className="flex gap-3 mt-2">
-                      <button
-                        onClick={() => setStep(1)}
-                        className="flex items-center gap-1 px-4 py-3 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors"
-                      >
-                        <ChevronLeft size={16} /> Voltar
-                      </button>
-                      <button
-                        onClick={submitForm}
-                        disabled={!step2Valid || submitting}
-                        className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl text-sm font-semibold transition-colors"
-                      >
-                        {submitting ? 'Enviando...' : 'Confirmar Cadastro'}
-                        {!submitting && <Check size={16} />}
-                      </button>
-                    </div>
                   </div>
                 )}
               </>
             )}
           </div>
+
+          {/* ── Sticky nav footer ── */}
+          {!submitted && (
+            <div className="sticky bottom-0 bg-white border-t border-gray-100 rounded-b-2xl px-6 py-4">
+              {step === 1 ? (
+                <button
+                  onClick={() => setStep(2)}
+                  disabled={!step1Valid}
+                  className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white px-6 py-3.5 rounded-xl text-sm font-semibold transition-colors"
+                >
+                  {step1Valid ? (
+                    <>Continuar <ChevronRight size={16} /></>
+                  ) : (
+                    'Preencha nome e WhatsApp para continuar'
+                  )}
+                </button>
+              ) : (
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setStep(1)}
+                    className="flex items-center gap-1 px-4 py-3.5 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors"
+                  >
+                    <ChevronLeft size={16} /> Voltar
+                  </button>
+                  <button
+                    onClick={submitForm}
+                    disabled={!step2Valid || submitting}
+                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white px-6 py-3.5 rounded-xl text-sm font-semibold transition-colors"
+                  >
+                    {submitting ? 'Enviando...' : <>Confirmar Cadastro <Check size={16} /></>}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
