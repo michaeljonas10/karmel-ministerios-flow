@@ -880,6 +880,7 @@ export default function MeuMinisterio() {
   const [coordView, setCoordView] = useState<'table' | 'kanban'>('table')
   const [showSubAreaModal, setShowSubAreaModal] = useState(false)
   const [showCoordModal, setShowCoordModal] = useState(false)
+  const [showCadastroModal, setShowCadastroModal] = useState(false)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
@@ -1049,8 +1050,149 @@ export default function MeuMinisterio() {
       ? `${mySubAreas.map(sa => sa.name).join(' · ')}${unassignedVolunteers.length > 0 ? ` · ${unassignedVolunteers.length} sem área` : ''}`
       : 'Meu Painel'
 
+  // ── Cadastro modal ──────────────────────────────────────────────────────────
+  const CadastroModal = showCadastroModal ? (() => {
+    function Inner() {
+      const availableSubAreas = isCoordinator ? mySubAreas : (ministry?.subAreas ?? [])
+      const [form, setForm] = useState({
+        name: '', phone: '', email: '', sub_area: availableSubAreas[0]?.name ?? '',
+        attends_church: '', has_experience: '', participates_gc: '', notes: '',
+      })
+      const [submitting, setSubmitting] = useState(false)
+      const [error, setError] = useState('')
+
+      function maskPhone(v: string) {
+        const d = v.replace(/\D/g, '').slice(0, 11)
+        if (d.length <= 2) return `(${d}`
+        if (d.length <= 7) return `(${d.slice(0,2)}) ${d.slice(2)}`
+        return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
+      }
+
+      const phoneDigits = form.phone.replace(/\D/g, '')
+      const valid = form.name.trim() && phoneDigits.length >= 10 && form.sub_area && form.attends_church && form.has_experience
+
+      async function submit() {
+        if (!valid || !ministry) return
+        setSubmitting(true); setError('')
+
+        const { data: dup } = await supabase.rpc('public_check_phone', { p_phone_suffix: phoneDigits.slice(-8) })
+        if (dup?.exists) {
+          setError(`Já existe cadastro com este WhatsApp (${dup.name}).`)
+          setSubmitting(false); return
+        }
+
+        const subAreaObj = ministry.subAreas.find(s => s.name === form.sub_area)
+        const coordinator = subAreaObj?.coordinatorNames?.[0] ?? subAreaObj?.coordinator ?? profile?.name ?? ''
+        const now = new Date().toISOString()
+        const id = crypto.randomUUID()
+
+        const notes = [
+          form.notes,
+          `Frequenta: ${form.attends_church}`,
+          `Experiência: ${form.has_experience}`,
+          `Cadastrado por: ${profile?.name ?? 'Coordenador'}`,
+        ].filter(Boolean).join('\n')
+
+        const { error: vErr } = await supabase.from('volunteers').insert({
+          id, name: form.name.trim(), phone: form.phone, email: form.email || null,
+          registered_at: now, ministry_id: ministry.id, sub_area: form.sub_area,
+          coordinator, current_stage: 'cadastrado',
+          participates_gc: form.participates_gc === 'Sim' ? true : form.participates_gc === 'Não' ? false : null,
+          notes, last_contact_date: now,
+        })
+
+        if (vErr) { setError('Erro ao salvar. Tente novamente.'); setSubmitting(false); return }
+
+        await supabase.from('stage_history').insert({
+          volunteer_id: id, stage: 'cadastrado', date: now,
+          changed_by: profile?.name ?? 'Coordenador',
+        })
+
+        setVolunteers(prev => [{
+          id, name: form.name.trim(), phone: form.phone, email: form.email || undefined,
+          registeredAt: now, ministryId: ministry.id, subArea: form.sub_area,
+          coordinator, currentStage: 'cadastrado', stageHistory: [{ stage: 'cadastrado', date: now }],
+          notes, lastContactDate: now, contactAttempts: 0,
+          participatesGc: form.participates_gc === 'Sim' ? true : form.participates_gc === 'Não' ? false : undefined,
+        }, ...prev])
+
+        showToast(`${form.name.split(' ')[0]} cadastrado com sucesso!`)
+        setShowCadastroModal(false)
+      }
+
+      const inputCls = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400'
+      const RadioGroup = ({ name, options, value, onChange }: { name: string; options: string[]; value: string; onChange: (v: string) => void }) => (
+        <div className="flex gap-3 flex-wrap">
+          {options.map(o => (
+            <label key={o} className="flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" name={name} value={o} checked={value === o} onChange={() => onChange(o)} className="accent-indigo-600" />
+              <span className="text-sm text-gray-700">{o}</span>
+            </label>
+          ))}
+        </div>
+      )
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4">
+          <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">Cadastrar Voluntário</h2>
+              <button onClick={() => setShowCadastroModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nome completo *</label>
+                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Nome completo" className={inputCls} autoFocus />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">WhatsApp *</label>
+                <input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: maskPhone(e.target.value) }))} placeholder="(00) 9 0000-0000" className={inputCls} type="tel" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Email</label>
+                <input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} placeholder="opcional" className={inputCls} type="email" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Sub-área *</label>
+                <select value={form.sub_area} onChange={e => setForm(p => ({ ...p, sub_area: e.target.value }))} className={`${inputCls} bg-white`}>
+                  <option value="">Selecione...</option>
+                  {availableSubAreas.map(sa => <option key={sa.id} value={sa.name}>{sa.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Frequenta a Igreja? *</label>
+                <RadioGroup name="attends" options={['Sim', 'Não', 'Às vezes']} value={form.attends_church} onChange={v => setForm(p => ({ ...p, attends_church: v }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Participa de GC?</label>
+                <RadioGroup name="gc" options={['Sim', 'Não']} value={form.participates_gc} onChange={v => setForm(p => ({ ...p, participates_gc: v }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Tem experiência na área? *</label>
+                <RadioGroup name="exp" options={['Sim', 'Não']} value={form.has_experience} onChange={v => setForm(p => ({ ...p, has_experience: v }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Observações</label>
+                <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Opcional..." className={`${inputCls} resize-none`} />
+              </div>
+              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2">{error}</p>}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setShowCadastroModal(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">Cancelar</button>
+              <button onClick={submit} disabled={!valid || submitting} className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-semibold transition-colors">
+                {submitting ? 'Salvando...' : 'Cadastrar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    return <Inner />
+  })() : null
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--body-bg)' }}>
+      {CadastroModal}
       {/* Header */}
       <header
         className="border-b px-4 lg:px-8 py-3 flex items-center justify-between gap-3"
@@ -1091,7 +1233,14 @@ export default function MeuMinisterio() {
               </h1>
               <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>{panelTitle}</p>
             </div>
-            <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowCadastroModal(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors"
+              >
+                <Plus size={15} /> Novo Voluntário
+              </button>
+              <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
               <button
                 onClick={() => setActiveTab('overview')}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'overview' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
@@ -1111,6 +1260,7 @@ export default function MeuMinisterio() {
                 Arquivados
               </button>
             </div>
+            </div>
           </div>
         )}
 
@@ -1123,13 +1273,21 @@ export default function MeuMinisterio() {
             {/* ── COORDINATOR view ── */}
             {isCoordinator && (
               <div className="space-y-5">
-                {/* Hero */}
-                <CoordHero
-                  name={profile?.name ?? ''}
-                  subAreas={mySubAreas}
-                  ministry={ministry}
-                  volunteers={myVolunteers}
-                />
+                {/* Hero + novo voluntário */}
+                <div className="flex items-start justify-between gap-3">
+                  <CoordHero
+                    name={profile?.name ?? ''}
+                    subAreas={mySubAreas}
+                    ministry={ministry}
+                    volunteers={myVolunteers}
+                  />
+                  <button
+                    onClick={() => setShowCadastroModal(true)}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors mt-1"
+                  >
+                    <Plus size={15} /> Novo
+                  </button>
+                </div>
 
                 {/* KPIs row */}
                 <KPIs volunteers={myVolunteers} />
