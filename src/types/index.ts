@@ -82,6 +82,13 @@ export interface StageHistoryEntry {
   stage: JourneyStage;
   date: string;
   note?: string;
+  changedBy?: string;
+}
+
+export interface ContactLogEntry {
+  id: string;
+  contactedBy: string;
+  contactedAt: string;
 }
 
 export interface Volunteer {

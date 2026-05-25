@@ -39,6 +39,8 @@ export default function VolunteerDetail() {
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [editLog, setEditLog] = useState<{ field: string; old_value: string | null; new_value: string | null; changed_by: string | null; changed_at: string }[]>([]);
   const [showEditLog, setShowEditLog] = useState(false);
+  const [contactLog, setContactLog] = useState<{ id: string; contacted_by: string; contacted_at: string }[]>([]);
+  const [showContactLog, setShowContactLog] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -61,10 +63,11 @@ export default function VolunteerDetail() {
           subArea: data.sub_area,
           coordinator: data.coordinator,
           currentStage: data.current_stage,
-          stageHistory: (data.stage_history || []).map((h: { stage: string; date: string; note?: string }) => ({
+          stageHistory: (data.stage_history || []).map((h: { stage: string; date: string; note?: string; changed_by?: string }) => ({
             stage: h.stage,
             date: h.date,
             note: h.note,
+            changedBy: h.changed_by ?? undefined,
           })),
           notes: data.notes,
           lastContactDate: data.last_contact_date,
@@ -89,8 +92,19 @@ export default function VolunteerDetail() {
       if (data) setEditLog(data);
     }
 
+    async function fetchContactLog() {
+      const { data } = await supabase
+        .from('contact_log')
+        .select('id, contacted_by, contacted_at')
+        .eq('volunteer_id', id)
+        .order('contacted_at', { ascending: false })
+        .limit(50);
+      if (data) setContactLog(data);
+    }
+
     fetchVolunteer();
     fetchEditLog();
+    fetchContactLog();
 
     const channel = supabase
       .channel(`volunteer-detail-${id}`)
@@ -148,8 +162,12 @@ export default function VolunteerDetail() {
     if (!volunteer) return;
     const now = new Date().toISOString();
     const newAttempts = (volunteer.contactAttempts ?? 0) + 1;
+    const authorName = profile?.name ?? 'Desconhecido';
     setVolunteer(v => v ? { ...v, lastContactDate: now, alertDays: 0, contactAttempts: newAttempts } : v);
     await supabase.from('volunteers').update({ last_contact_date: now, contact_attempts: newAttempts }).eq('id', volunteer.id);
+    const newEntry = { id: crypto.randomUUID(), contacted_by: authorName, contacted_at: now };
+    await supabase.from('contact_log').insert({ volunteer_id: volunteer.id, contacted_by: authorName, contacted_at: now });
+    setContactLog(prev => [newEntry, ...prev]);
     showToast('Contato registrado!');
   }
 
@@ -172,15 +190,16 @@ export default function VolunteerDetail() {
     if (!volunteer || !canAdvance) return;
     const nextStage = stageOrder[currentIdx + 1];
     const now = new Date().toISOString();
+    const authorName = profile?.name ?? 'Desconhecido';
     setVolunteer(v => v ? {
       ...v,
       currentStage: nextStage,
       lastContactDate: now,
       alertDays: 0,
-      stageHistory: [...v.stageHistory, { stage: nextStage, date: now }],
+      stageHistory: [...v.stageHistory, { stage: nextStage, date: now, changedBy: authorName }],
     } : v);
     await supabase.from('volunteers').update({ current_stage: nextStage, last_contact_date: now }).eq('id', volunteer.id);
-    await supabase.from('stage_history').insert({ volunteer_id: volunteer.id, stage: nextStage, date: now });
+    await supabase.from('stage_history').insert({ volunteer_id: volunteer.id, stage: nextStage, date: now, changed_by: authorName });
     showToast(`Avançado para: ${STAGE_LABELS[nextStage]}`);
   }
 
@@ -188,37 +207,40 @@ export default function VolunteerDetail() {
     if (!volunteer || !canRetreat) return;
     const prevStage = stageOrder[currentIdx - 1];
     const now = new Date().toISOString();
+    const authorName = profile?.name ?? 'Desconhecido';
     setVolunteer(v => v ? {
       ...v,
       currentStage: prevStage,
-      stageHistory: [...v.stageHistory, { stage: prevStage, date: now }],
+      stageHistory: [...v.stageHistory, { stage: prevStage, date: now, note: 'Etapa retrocedida manualmente', changedBy: authorName }],
     } : v);
     await supabase.from('volunteers').update({ current_stage: prevStage }).eq('id', volunteer.id);
-    await supabase.from('stage_history').insert({ volunteer_id: volunteer.id, stage: prevStage, date: now, note: 'Etapa retrocedida manualmente' });
+    await supabase.from('stage_history').insert({ volunteer_id: volunteer.id, stage: prevStage, date: now, note: 'Etapa retrocedida manualmente', changed_by: authorName });
     showToast(`Retrocedido para: ${STAGE_LABELS[prevStage]}`);
   }
 
   async function setOffTrack(stage: 'mudou_area' | 'nao_retornou') {
     if (!volunteer) return;
     const now = new Date().toISOString();
-    setVolunteer(v => v ? { ...v, currentStage: stage, stageHistory: [...v.stageHistory, { stage, date: now }] } : v);
+    const authorName = profile?.name ?? 'Desconhecido';
+    setVolunteer(v => v ? { ...v, currentStage: stage, stageHistory: [...v.stageHistory, { stage, date: now, changedBy: authorName }] } : v);
     await supabase.from('volunteers').update({ current_stage: stage }).eq('id', volunteer.id);
-    await supabase.from('stage_history').insert({ volunteer_id: volunteer.id, stage, date: now });
+    await supabase.from('stage_history').insert({ volunteer_id: volunteer.id, stage, date: now, changed_by: authorName });
     showToast(`Status: ${STAGE_LABELS[stage]}`);
   }
 
   async function reactivate() {
     if (!volunteer) return;
     const now = new Date().toISOString();
+    const authorName = profile?.name ?? 'Desconhecido';
     const lastTrackStage = ([...volunteer.stageHistory].reverse()
       .find(h => stageOrder.includes(h.stage as JourneyStage))?.stage as JourneyStage) ?? stageOrder[0];
     setVolunteer(v => v ? {
       ...v,
       currentStage: lastTrackStage,
-      stageHistory: [...v.stageHistory, { stage: lastTrackStage, date: now, note: 'Reativado' }],
+      stageHistory: [...v.stageHistory, { stage: lastTrackStage, date: now, note: 'Reativado', changedBy: authorName }],
     } : v);
     await supabase.from('volunteers').update({ current_stage: lastTrackStage }).eq('id', volunteer.id);
-    await supabase.from('stage_history').insert({ volunteer_id: volunteer.id, stage: lastTrackStage, date: now, note: 'Reativado' });
+    await supabase.from('stage_history').insert({ volunteer_id: volunteer.id, stage: lastTrackStage, date: now, note: 'Reativado', changed_by: authorName });
     showToast(`Reativado em: ${STAGE_LABELS[lastTrackStage]}`);
   }
 
@@ -689,6 +711,9 @@ export default function VolunteerDetail() {
                       {STAGE_LABELS[entry.stage as keyof typeof STAGE_LABELS] || entry.stage}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">{formatDate(entry.date)}</p>
+                    {entry.changedBy && (
+                      <p className="text-xs text-indigo-500 mt-0.5 font-medium">por {entry.changedBy}</p>
+                    )}
                     {entry.note && (
                       <p className="text-xs text-gray-500 mt-1 bg-gray-50 rounded p-2">{entry.note}</p>
                     )}
@@ -702,16 +727,54 @@ export default function VolunteerDetail() {
         {/* Notes + Last contact */}
         <div className="space-y-4">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Clock size={16} className="text-gray-400" />
-              <h2 className="text-base font-semibold text-gray-800">Último Contato</h2>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Clock size={16} className="text-gray-400" />
+                <h2 className="text-base font-semibold text-gray-800">Contatos WhatsApp</h2>
+              </div>
+              {contactLog.length > 0 && (
+                <button
+                  onClick={() => setShowContactLog(v => !v)}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  {showContactLog ? 'Ocultar' : `Ver todos (${contactLog.length})`}
+                </button>
+              )}
             </div>
-            <p className="text-sm text-gray-600">{formatDate(volunteer.lastContactDate)}</p>
-            <p className={`text-xs mt-1 font-medium ${
-              days >= 14 ? 'text-red-500' : days >= 7 ? 'text-orange-500' : 'text-green-500'
-            }`}>
-              {days === 0 ? 'Hoje' : `Há ${days} dia${days !== 1 ? 's' : ''}`}
-            </p>
+            {contactLog.length > 0 ? (
+              <>
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <span className="font-medium">{contactLog[0].contacted_by}</span>
+                  <span className="text-gray-400">·</span>
+                  <span className="text-gray-500">{formatDate(contactLog[0].contacted_at)}</span>
+                </div>
+                <p className={`text-xs mt-1 font-medium ${
+                  days >= 14 ? 'text-red-500' : days >= 7 ? 'text-orange-500' : 'text-green-500'
+                }`}>
+                  {days === 0 ? 'Hoje' : `Há ${days} dia${days !== 1 ? 's' : ''}`}
+                </p>
+                {showContactLog && (
+                  <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                    {contactLog.map(entry => (
+                      <div key={entry.id} className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-gray-700">{entry.contacted_by}</span>
+                        <span className="text-gray-400">{formatDate(entry.contacted_at)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600">{formatDate(volunteer.lastContactDate)}</p>
+                <p className={`text-xs mt-1 font-medium ${
+                  days >= 14 ? 'text-red-500' : days >= 7 ? 'text-orange-500' : 'text-green-500'
+                }`}>
+                  {days === 0 ? 'Hoje' : `Há ${days} dia${days !== 1 ? 's' : ''}`}
+                </p>
+                <p className="text-xs text-gray-400 mt-1 italic">Nenhum contato registrado ainda.</p>
+              </>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex-1">
