@@ -36,7 +36,7 @@ export default function VolunteerDetail() {
   const [editField, setEditField] = useState<'phone' | 'email' | 'name' | 'subArea' | 'birthday' | 'howFound' | null>(null);
   const [editValue, setEditValue] = useState('');
   const [templateCopied, setTemplateCopied] = useState(false);
-  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [showEncerrar, setShowEncerrar] = useState(false);
   const [editLog, setEditLog] = useState<{ field: string; old_value: string | null; new_value: string | null; changed_by: string | null; changed_at: string }[]>([]);
   const [showEditLog, setShowEditLog] = useState(false);
   const [contactLog, setContactLog] = useState<{ id: string; contacted_by: string; contacted_at: string }[]>([]);
@@ -308,8 +308,7 @@ export default function VolunteerDetail() {
     const now = new Date().toISOString();
     await supabase.from('volunteers').update({ archived_at: now }).eq('id', volunteer.id);
     showToast('Voluntário arquivado.');
-    setShowArchiveConfirm(false);
-    setTimeout(() => navigate(-1), 1200);
+    setTimeout(() => navigate('/arquivados'), 1200);
   }
 
   async function addNote() {
@@ -336,35 +335,47 @@ export default function VolunteerDetail() {
       )}
 
       {/* Archive confirm modal */}
-      {showArchiveConfirm && (
+      {showEncerrar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
-            <h3 className="text-base font-bold text-gray-900 mb-2">Arquivar voluntário?</h3>
-            <p className="text-sm text-gray-500 mb-5">O voluntário será removido de todas as listas e painéis. O histórico fica preservado e pode ser restaurado pelo banco de dados.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowArchiveConfirm(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">Cancelar</button>
-              <button onClick={archiveVolunteer} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700">Arquivar</button>
+            <h3 className="text-base font-bold text-gray-900 mb-1">Encerrar jornada</h3>
+            <p className="text-sm text-gray-500 mb-5">Escolha o motivo para registrar no histórico.</p>
+            <div className="space-y-3 mb-5">
+              <button
+                onClick={() => { setOffTrack('nao_retornou'); setShowEncerrar(false); }}
+                className="w-full text-left px-4 py-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors"
+              >
+                <p className="text-sm font-semibold text-red-700">Sem Retorno</p>
+                <p className="text-xs text-red-500 mt-0.5">Voluntário não respondeu aos contatos. Ainda aparece no Follow-up.</p>
+              </button>
+              <button
+                onClick={() => { setOffTrack('mudou_area'); setShowEncerrar(false); }}
+                className="w-full text-left px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors"
+              >
+                <p className="text-sm font-semibold text-amber-700">Mudou de Ministério</p>
+                <p className="text-xs text-amber-600 mt-0.5">Está servindo em outra área.</p>
+              </button>
+              <button
+                onClick={() => { archiveVolunteer(); setShowEncerrar(false); }}
+                className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                <p className="text-sm font-semibold text-gray-700">Arquivar</p>
+                <p className="text-xs text-gray-500 mt-0.5">Remove de todas as listas. Acessível em Arquivados.</p>
+              </button>
             </div>
+            <button onClick={() => setShowEncerrar(false)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">Cancelar</button>
           </div>
         </div>
       )}
 
-      {/* Back + archive */}
-      <div className="flex items-center justify-between">
+      {/* Back */}
+      <div className="flex items-center">
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm font-medium"
         >
           <ArrowLeft size={16} />
           Voltar
-        </button>
-        <button
-          onClick={() => setShowArchiveConfirm(true)}
-          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-500 transition-colors"
-          title="Arquivar voluntário"
-        >
-          <Archive size={13} />
-          Arquivar
         </button>
       </div>
 
@@ -434,13 +445,22 @@ export default function VolunteerDetail() {
             <div className="flex flex-wrap gap-2">
               <WaButton phone={volunteer.phone} message={ministry ? buildTemplate(volunteer.currentStage, volunteer, ministry.name, profile?.name) : undefined} size="md" onClick={() => volunteer.phone && markContacted()} />
               {isOffTrack ? (
-                <button
-                  className="flex items-center gap-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-medium transition-colors"
-                  onClick={reactivate}
-                >
-                  <ChevronRight size={14} />
-                  Reativar na Trilha
-                </button>
+                <>
+                  <button
+                    className="flex items-center gap-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-medium transition-colors"
+                    onClick={reactivate}
+                  >
+                    <ChevronRight size={14} />
+                    Reativar na Trilha
+                  </button>
+                  <button
+                    className="flex items-center gap-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 border border-gray-200 px-3 py-2 rounded-xl font-medium transition-colors text-xs"
+                    onClick={archiveVolunteer}
+                  >
+                    <Archive size={13} />
+                    Arquivar
+                  </button>
+                </>
               ) : (
                 <>
                   <button
@@ -461,16 +481,11 @@ export default function VolunteerDetail() {
                     Avançar Etapa
                   </button>
                   <button
-                    className="flex items-center gap-2 text-sm bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-3 py-2 rounded-xl font-medium transition-colors text-xs"
-                    onClick={() => setOffTrack('mudou_area')}
+                    className="flex items-center gap-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 border border-gray-200 px-3 py-2 rounded-xl font-medium transition-colors text-xs"
+                    onClick={() => setShowEncerrar(true)}
                   >
-                    Mudou de Ministério
-                  </button>
-                  <button
-                    className="flex items-center gap-2 text-sm bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-2 rounded-xl font-medium transition-colors text-xs"
-                    onClick={() => setOffTrack('nao_retornou')}
-                  >
-                    Sem Retorno
+                    <Archive size={13} />
+                    Encerrar Jornada
                   </button>
                 </>
               )}

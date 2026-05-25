@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Camera, Music, Baby, Zap, Heart, Home,
-  Bell, Menu, X, AlertTriangle, Settings, LogOut, ShieldCheck, User, TrendingUp, HelpCircle, Headphones,
+  Bell, Menu, X, AlertTriangle, Settings, LogOut, ShieldCheck, User, TrendingUp, HelpCircle, Headphones, Archive,
   Star, Shield, BookOpen, Globe, Users, Cross, Mic, Film, Radio, Tv, Volume2,
   Car, Coffee, Megaphone, Flame, Waves, Gift, Monitor, Flower2, Utensils, Bus, Paintbrush, HandHeart, Scissors, Smile, Church,
 } from 'lucide-react';
@@ -135,6 +135,7 @@ export default function Layout({ children }: LayoutProps) {
                 <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Gestão</p>
               </div>
               <SideLink to="/follow-up" icon={<AlertTriangle size={18} />} label="Follow-up" badge={alertCount > 0 ? alertCount : undefined} onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/arquivados" icon={<Archive size={18} />} label="Arquivados" onClose={() => setSidebarOpen(false)} />
               <SideLink to="/metricas" icon={<TrendingUp size={18} />} label="Métricas" onClose={() => setSidebarOpen(false)} />
 
               <div className="pt-4 pb-1">
@@ -154,6 +155,7 @@ export default function Layout({ children }: LayoutProps) {
                 <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Gestão</p>
               </div>
               <SideLink to="/follow-up" icon={<AlertTriangle size={18} />} label="Follow-up" badge={alertCount > 0 ? alertCount : undefined} onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/arquivados" icon={<Archive size={18} />} label="Arquivados" onClose={() => setSidebarOpen(false)} />
               <SideLink to="/metricas" icon={<TrendingUp size={18} />} label="Métricas" onClose={() => setSidebarOpen(false)} />
               <SideLink to="/ajuda" icon={<HelpCircle size={18} />} label="Ajuda & Suporte" onClose={() => setSidebarOpen(false)} />
             </>
@@ -163,6 +165,7 @@ export default function Layout({ children }: LayoutProps) {
           {!isAdmin && !isLeader && profile?.ministry_id && (
             <>
               <SideLink to="/meu-ministerio" icon={<User size={18} />} label="Minha Sub-área" onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/arquivados" icon={<Archive size={18} />} label="Arquivados" onClose={() => setSidebarOpen(false)} />
               <SideLink to="/metricas" icon={<TrendingUp size={18} />} label="Métricas" onClose={() => setSidebarOpen(false)} />
               <SideLink to="/ajuda" icon={<HelpCircle size={18} />} label="Ajuda & Suporte" onClose={() => setSidebarOpen(false)} />
             </>

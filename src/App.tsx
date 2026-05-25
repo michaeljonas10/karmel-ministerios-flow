@@ -18,6 +18,7 @@ import EsqueciSenha from './pages/EsqueciSenha';
 import RedefinirSenha from './pages/RedefinirSenha';
 import Ajuda from './pages/Ajuda';
 import Suporte from './pages/Suporte';
+import Arquivados from './pages/Arquivados';
 import GlobalSearch from './components/GlobalSearch';
 
 function LoadingScreen() {
@@ -121,6 +122,14 @@ function AppRoutes() {
                 element={
                   <ProtectedRoute adminOnly>
                     <Configuracoes />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/arquivados"
+                element={
+                  <ProtectedRoute>
+                    <Arquivados />
                   </ProtectedRoute>
                 }
               />
