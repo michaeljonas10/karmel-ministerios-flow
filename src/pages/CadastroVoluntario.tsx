@@ -312,6 +312,7 @@ export default function CadastroVoluntario() {
                         <option value="Culto Visão">Culto Visão</option>
                         <option value="App da Igreja">App da Igreja</option>
                         <option value="Indicação de Membro">Indicação de Membro</option>
+                        <option value="Já sou voluntário">Já sou voluntário</option>
                       </select>
                     </Field>
                   </div>

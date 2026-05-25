@@ -1,4 +1,4 @@
-export const HOW_FOUND_OPTIONS: string[] = ['Integra', 'Culto Visão', 'App da Igreja', 'Indicação de Membro'];
+export const HOW_FOUND_OPTIONS: string[] = ['Integra', 'Culto Visão', 'App da Igreja', 'Indicação de Membro', 'Já sou voluntário'];
 
 export type JourneyStage =
   | 'cadastrado'
