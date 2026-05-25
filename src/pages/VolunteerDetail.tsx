@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import {
   ArrowLeft, Mail, Calendar, User, ChevronRight, ChevronLeft,
-  CheckCircle, MessageSquare, Clock, Pencil, X, Save, Copy, Cake, PhoneCall, Compass, Archive, History,
+  CheckCircle, MessageSquare, Clock, Pencil, X, Save, Copy, Cake, PhoneCall, Compass, Archive, History, Monitor,
 } from 'lucide-react';
 import WaButton from '../components/WaButton';
 import { getDaysSinceLastContact } from '../data/volunteers';
@@ -72,6 +72,7 @@ export default function VolunteerDetail() {
           birthday: data.birthday ?? undefined,
           howFound: data.how_found ?? undefined,
           participatesGc: data.participates_gc ?? undefined,
+          platforms: data.platforms ?? [],
           contactAttempts: data.contact_attempts ?? 0,
         });
       }
@@ -727,6 +728,23 @@ export default function VolunteerDetail() {
               <p className="text-sm text-gray-400 italic">Nenhuma observação registrada.</p>
             )}
           </div>
+
+          {/* Platforms / technical skills */}
+          {volunteer.platforms && volunteer.platforms.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Monitor size={16} className="text-gray-400" />
+                <h2 className="text-base font-semibold text-gray-800">Conhecimentos Técnicos</h2>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {volunteer.platforms.map(p => (
+                  <span key={p} className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium border border-indigo-100">
+                    {p}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Ministry info */}
           <div

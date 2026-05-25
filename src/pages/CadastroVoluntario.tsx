@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useMinistries } from '../contexts/MinistriesContext';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Check, Monitor } from 'lucide-react';
+import { PLATFORM_GROUPS } from '../types';
 
 // ─── Phone mask ──────────────────────────────────────────────────────────────
 function maskPhone(value: string): string {
@@ -122,6 +123,7 @@ interface FormData {
   attends_church: string;
   has_experience: string;
   participates_gc: string;
+  platforms: string[];
   notes: string;
   coordinator?: string;
 }
@@ -152,9 +154,18 @@ export default function CadastroVoluntario() {
     attends_church: '',
     has_experience: '',
     participates_gc: '',
+    platforms: [],
     notes: '',
     coordinator: preCoordinator,
   });
+
+  const togglePlatform = (p: string) =>
+    setForm(prev => ({
+      ...prev,
+      platforms: prev.platforms.includes(p)
+        ? prev.platforms.filter(x => x !== p)
+        : [...prev.platforms, p],
+    }));
 
   const set = (field: keyof FormData) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -167,10 +178,10 @@ export default function CadastroVoluntario() {
     setForm(prev => ({ ...prev, sub_area: '' }));
   }, [form.ministry_id]);
 
-  // Step 1 validation
+  // Step validations
   const step1Valid = form.name.trim() && form.phone.replace(/\D/g, '').length >= 10;
-  // Step 2 validation
   const step2Valid = form.ministry_id && form.sub_area && form.attends_church && form.has_experience;
+  // Step 3 (platforms) is always optional — can advance with 0 selected
 
   const submitForm = async () => {
     setSubmitting(true);
@@ -199,6 +210,10 @@ export default function CadastroVoluntario() {
       selectedMinistry?.coordinators[0] ||
       '';
 
+    const platformsNote = form.platforms.length > 0
+      ? `Plataformas: ${form.platforms.join(', ')}`
+      : '';
+
     const volunteerRow = {
       id,
       name: form.name.trim(),
@@ -216,6 +231,7 @@ export default function CadastroVoluntario() {
         `Frequenta: ${form.attends_church}`,
         `Experiência: ${form.has_experience}`,
         form.coordinator ? `Coordenador indicado: ${form.coordinator}` : '',
+        platformsNote,
       ].filter(Boolean).join('\n'),
       last_contact_date: now,
     };
@@ -232,6 +248,12 @@ export default function CadastroVoluntario() {
       stage: 'cadastrado',
       date: now,
     });
+
+    // Try to store platforms in dedicated column (requires migration to be applied)
+    if (form.platforms.length > 0) {
+      await supabase.from('volunteers').update({ platforms: form.platforms }).eq('id', id);
+      // Silently ignore errors if column doesn't exist yet
+    }
 
     setSubmitting(false);
     setSubmitted(true);
@@ -267,7 +289,7 @@ export default function CadastroVoluntario() {
               <SuccessScreen name={form.name.split(' ')[0]} />
             ) : (
               <>
-                <StepIndicator current={step} total={2} onGoTo={s => setStep(s)} />
+                <StepIndicator current={step} total={3} onGoTo={s => setStep(s)} />
 
                 {/* ── Step 1 ── */}
                 {step === 1 && (
@@ -417,6 +439,62 @@ export default function CadastroVoluntario() {
                     )}
                   </div>
                 )}
+
+                {/* ── Step 3 ── */}
+                {step === 3 && (
+                  <div className="space-y-5 animate-fade-in">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
+                        <Monitor size={20} className="text-indigo-600" />
+                        Conhecimentos Técnicos
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        Marque as ferramentas e plataformas que você domina (opcional).
+                      </p>
+                    </div>
+
+                    {PLATFORM_GROUPS.map(group => (
+                      <div key={group.label}>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                          {group.label}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {group.items.map(item => {
+                            const selected = form.platforms.includes(item);
+                            return (
+                              <button
+                                key={item}
+                                type="button"
+                                onClick={() => togglePlatform(item)}
+                                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all select-none
+                                  ${selected
+                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                                    : 'bg-white border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600'
+                                  }`}
+                              >
+                                {selected && <span className="mr-1">✓</span>}
+                                {item}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+
+                    {form.platforms.length > 0 && (
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2.5 text-sm text-indigo-700">
+                        <span className="font-medium">{form.platforms.length} selecionado{form.platforms.length !== 1 ? 's' : ''}:</span>{' '}
+                        {form.platforms.join(', ')}
+                      </div>
+                    )}
+
+                    {error && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+                        {error}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -424,7 +502,7 @@ export default function CadastroVoluntario() {
           {/* ── Sticky nav footer ── */}
           {!submitted && (
             <div className="sticky bottom-0 bg-white border-t border-gray-100 rounded-b-2xl px-6 py-4">
-              {step === 1 ? (
+              {step === 1 && (
                 <button
                   onClick={() => setStep(2)}
                   disabled={!step1Valid}
@@ -436,7 +514,8 @@ export default function CadastroVoluntario() {
                     'Preencha nome e WhatsApp para continuar'
                   )}
                 </button>
-              ) : (
+              )}
+              {step === 2 && (
                 <div className="flex gap-3">
                   <button
                     onClick={() => setStep(1)}
@@ -445,8 +524,25 @@ export default function CadastroVoluntario() {
                     <ChevronLeft size={16} /> Voltar
                   </button>
                   <button
+                    onClick={() => setStep(3)}
+                    disabled={!step2Valid}
+                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white px-6 py-3.5 rounded-xl text-sm font-semibold transition-colors"
+                  >
+                    Continuar <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+              {step === 3 && (
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setStep(2)}
+                    className="flex items-center gap-1 px-4 py-3.5 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors"
+                  >
+                    <ChevronLeft size={16} /> Voltar
+                  </button>
+                  <button
                     onClick={submitForm}
-                    disabled={!step2Valid || submitting}
+                    disabled={submitting}
                     className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white px-6 py-3.5 rounded-xl text-sm font-semibold transition-colors"
                   >
                     {submitting ? 'Enviando...' : <>Confirmar Cadastro <Check size={16} /></>}

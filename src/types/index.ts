@@ -1,5 +1,25 @@
 export const HOW_FOUND_OPTIONS: string[] = ['Integra', 'Culto Visão', 'App da Igreja', 'Indicação de Membro', 'Já sou voluntário'];
 
+// Plataformas/ferramentas técnicas agrupadas por categoria
+export const PLATFORM_GROUPS: { label: string; items: string[] }[] = [
+  {
+    label: 'Design',
+    items: ['Canva', 'Photoshop', 'Illustrator', 'Figma', 'CorelDRAW'],
+  },
+  {
+    label: 'Vídeo & Edição',
+    items: ['Premiere Pro', 'DaVinci Resolve', 'After Effects', 'Final Cut Pro', 'CapCut'],
+  },
+  {
+    label: 'Captação',
+    items: ['Fotografia', 'Captação de Vídeo', 'OBS Studio', 'StreamLabs'],
+  },
+  {
+    label: 'Outros',
+    items: ['PowerPoint / Slides', 'Excel / Planilhas', 'WordPress', 'Redes Sociais'],
+  },
+];
+
 export type JourneyStage =
   | 'cadastrado'
   | 'grupo_acolhimento'
@@ -66,6 +86,7 @@ export interface Volunteer {
   notes: string;
   howFound?: string;
   participatesGc?: boolean;
+  platforms?: string[];
   archivedAt?: string;
   lastContactDate: string;
   alertDays?: number;

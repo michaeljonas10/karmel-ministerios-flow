@@ -24,6 +24,7 @@ function mapRow(v: Record<string, unknown>): Volunteer {
     notes: v.notes as string,
     howFound: v.how_found as string | undefined,
     participatesGc: v.participates_gc as boolean | undefined,
+    platforms: (v.platforms as string[] | undefined) ?? [],
     archivedAt: v.archived_at as string | undefined,
     lastContactDate: v.last_contact_date as string,
     alertDays: v.alert_days as number | undefined,
