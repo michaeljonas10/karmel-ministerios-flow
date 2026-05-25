@@ -187,15 +187,13 @@ export default function CadastroVoluntario() {
     setSubmitting(true);
     setError('');
 
-    // Duplicate detection by phone
+    // Duplicate detection by phone (uses SECURITY DEFINER RPC — no direct SELECT needed)
     const cleanPhone = form.phone.replace(/\D/g, '');
-    const { data: existing } = await supabase
-      .from('volunteers')
-      .select('id, name')
-      .ilike('phone', `%${cleanPhone.slice(-8)}%`)
-      .limit(1);
-    if (existing && existing.length > 0) {
-      setError(`Já existe um cadastro com este número de WhatsApp (${existing[0].name}). Entre em contato com a equipe.`);
+    const { data: phoneCheck } = await supabase.rpc('public_check_phone', {
+      p_phone_suffix: cleanPhone.slice(-8),
+    });
+    if (phoneCheck?.exists) {
+      setError(`Já existe um cadastro com este número de WhatsApp (${phoneCheck.name}). Entre em contato com a equipe.`);
       setSubmitting(false);
       return;
     }
