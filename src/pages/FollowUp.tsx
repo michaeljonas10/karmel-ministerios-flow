@@ -162,19 +162,14 @@ export default function FollowUp() {
     return true;
   }).sort((a, b) => getDaysSinceLastContact(b) - getDaysSinceLastContact(a));
 
-  // Also include established in search results if search is active
-  const filteredEstablished = search ? volunteers.filter(v => {
-    if (v.currentStage !== 'estabelecido') return false;
-    return v.name.toLowerCase().includes(search.toLowerCase()) ||
-           v.subArea.toLowerCase().includes(search.toLowerCase());
-  }) : [];
 
   const isOffTrack = (v: Volunteer) => v.currentStage === 'mudou_area' || v.currentStage === 'nao_retornou';
+  const inJourney = (v: Volunteer) => v.currentStage !== 'estabelecido' && !isOffTrack(v);
   const stats = {
-    red: volunteers.filter(v => !isOffTrack(v) && getDaysSinceLastContact(v) >= 30).length,
-    orange: volunteers.filter(v => { const d = getDaysSinceLastContact(v); return !isOffTrack(v) && d >= 14 && d < 30; }).length,
-    yellow: volunteers.filter(v => { const d = getDaysSinceLastContact(v); return !isOffTrack(v) && d >= 7 && d < 14; }).length,
-    green: volunteers.filter(v => !isOffTrack(v) && getDaysSinceLastContact(v) < 7).length,
+    red:    volunteers.filter(v => inJourney(v) && getDaysSinceLastContact(v) >= 30).length,
+    orange: volunteers.filter(v => { const d = getDaysSinceLastContact(v); return inJourney(v) && d >= 14 && d < 30; }).length,
+    yellow: volunteers.filter(v => { const d = getDaysSinceLastContact(v); return inJourney(v) && d >= 7 && d < 14; }).length,
+    green:  volunteers.filter(v => inJourney(v) && getDaysSinceLastContact(v) < 7).length,
     checkin: checkinDue.length,
     inativo: inactiveVolunteers.length,
   };
@@ -357,11 +352,8 @@ export default function FollowUp() {
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-gray-600">
-              <span className="font-bold text-gray-800">{filtered.length + filteredEstablished.length}</span> voluntários em jornada
+              <span className="font-bold text-gray-800">{filtered.length}</span> voluntários em jornada
             </p>
-            {search && filteredEstablished.length > 0 && (
-              <p className="text-xs text-green-600 mt-0.5">+ {filteredEstablished.length} estabelecido{filteredEstablished.length !== 1 ? 's' : ''} na busca</p>
-            )}
           </div>
           <Filter size={14} className="text-gray-400" />
         </div>

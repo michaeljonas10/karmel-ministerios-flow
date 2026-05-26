@@ -227,7 +227,7 @@ export default function Dashboard() {
   const established = volunteers.filter(v => v.currentStage === 'estabelecido').length;
   const inJourney = volunteers.filter(v => v.currentStage !== 'estabelecido').length;
   const alerts = volunteers
-    .filter(v => getDaysSinceLastContact(v) >= 7)
+    .filter(v => v.currentStage !== 'estabelecido' && !['mudou_area','nao_retornou'].includes(v.currentStage) && getDaysSinceLastContact(v) >= 7)
     .sort((a, b) => getDaysSinceLastContact(b) - getDaysSinceLastContact(a));
 
   // Funnel data

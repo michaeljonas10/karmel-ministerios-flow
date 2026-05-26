@@ -29,7 +29,7 @@ export const WA_TEMPLATES: Partial<Record<JourneyStage, string>> = {
     'Ola, {nome}! Sua primeira escala esta chegando - que momento especial! Qualquer coisa sobre o dia, horario ou o que vai precisar trazer, me fala. Estamos na torcida por voce!',
 
   estabelecido:
-    'Oi, {nome}! Passando para dizer que e uma alegria enorme te-lo(a) como parte do {ministerio}. Voce e estabelecido(a) na nossa equipe e isso e motivo de celebracao! Continue sendo essa bencao!',
+    'Oi, {nome}! Tudo bem? Aqui e {coordenador}, do {ministerio}. Passando para fazer nosso check-in de rotina - voce continua na escala e tudo correndo bem por ai? Qualquer coisa e so me chamar!',
 
   mudou_area:
     'Ola, {nome}! Soube que voce foi para outro ministerio. Que Deus abencoe muito essa nova etapa! Fica a vontade para nos procurar se precisar de qualquer coisa.',
