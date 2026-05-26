@@ -71,7 +71,7 @@ export default function Layout({ children }: LayoutProps) {
   const { profile, isAdmin, isSuperAdmin, isLeader, signOut } = useAuth();
   const { ministries } = useMinistries();
   const { volunteers: allVolunteers } = useVolunteers();
-  const alertCount = allVolunteers.filter(v => getDaysSinceLastContact(v) >= 7).length;
+  const alertCount = allVolunteers.filter(v => v.currentStage !== 'estabelecido' && getDaysSinceLastContact(v) >= 7).length;
 
 
 

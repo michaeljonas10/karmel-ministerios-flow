@@ -337,7 +337,7 @@ function FollowUpAlerts({
   onAdvanceStage: (id: string) => void
 }) {
   const navigate = useNavigate()
-  const alerts = volunteers.filter(v => getDaysSinceLastContact(v) >= 7)
+  const alerts = volunteers.filter(v => v.currentStage !== 'estabelecido' && getDaysSinceLastContact(v) >= 7)
   if (alerts.length === 0) return null
 
   return (
@@ -386,7 +386,7 @@ function FollowUpAlerts({
 
 // ─── KPI Cards ────────────────────────────────────────────────────────────────
 function KPIs({ volunteers }: { volunteers: Volunteer[] }) {
-  const alerts = volunteers.filter(v => getDaysSinceLastContact(v) >= 7).length
+  const alerts = volunteers.filter(v => v.currentStage !== 'estabelecido' && getDaysSinceLastContact(v) >= 7).length
   const established = volunteers.filter(v => v.currentStage === 'estabelecido').length
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -691,7 +691,7 @@ function CoordHero({ name, subAreas, ministry, volunteers }: {
 }) {
   const established = volunteers.filter(v => v.currentStage === 'estabelecido').length
   const inJourney = volunteers.filter(v => !OFF_TRACK_STAGES.includes(v.currentStage) && v.currentStage !== 'estabelecido').length
-  const alerts = volunteers.filter(v => getDaysSinceLastContact(v) >= 7).length
+  const alerts = volunteers.filter(v => v.currentStage !== 'estabelecido' && getDaysSinceLastContact(v) >= 7).length
   const color = ministry?.color ?? '#6366f1'
 
   return (
