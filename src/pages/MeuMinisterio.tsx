@@ -929,17 +929,29 @@ export default function MeuMinisterio() {
       })
     : ministryVolunteers
 
+  // Sort helper: most days without contact first
+  const byContactAsc = (a: Volunteer, b: Volunteer) =>
+    getDaysSinceLastContact(b) - getDaysSinceLastContact(a)
+
   // Unassigned = same ministry, no sub-area yet (and unclaimed or claimed by me)
   const unassignedVolunteers = isCoordinator
-    ? myVolunteers.filter(v => v.subArea === '')
+    ? myVolunteers.filter(v => v.subArea === '').sort(byContactAsc)
     : []
+
+  // My sub-area volunteers only (excludes unassigned) — used for follow-up alerts
+  const mySubAreaVolunteers = isCoordinator
+    ? myVolunteers.filter(v => v.subArea !== '').sort(byContactAsc)
+    : [...ministryVolunteers].sort(byContactAsc)
+
+  // All my volunteers sorted (sub-area + unassigned) — used for the table
+  const myVolunteersSorted = [...myVolunteers].sort(byContactAsc)
 
   // Sub-area filter: 'all' shows everything, 'unassigned' shows pending, else filters by name
   const displayedVolunteers = subAreaFilter === 'unassigned'
     ? unassignedVolunteers
     : subAreaFilter !== 'all'
-    ? myVolunteers.filter(v => v.subArea === subAreaFilter)
-    : myVolunteers
+    ? myVolunteersSorted.filter(v => v.subArea === subAreaFilter)
+    : myVolunteersSorted
 
   const markContacted = async (id: string) => {
     const now = new Date().toISOString()
@@ -1328,9 +1340,9 @@ export default function MeuMinisterio() {
                   </div>
                 </div>
 
-                {/* Follow-up alerts */}
+                {/* Follow-up alerts — only sub-area volunteers (not unassigned) */}
                 <FollowUpAlerts
-                  volunteers={displayedVolunteers}
+                  volunteers={subAreaFilter === 'unassigned' ? [] : subAreaFilter !== 'all' ? mySubAreaVolunteers.filter(v => v.subArea === subAreaFilter) : mySubAreaVolunteers}
                   ministryName={ministry?.name ?? ''}
                   senderName={profile?.name ?? ''}
                   onMarkContacted={markContacted}
