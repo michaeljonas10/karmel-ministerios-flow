@@ -80,6 +80,12 @@ export function MinistriesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refetch()
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        refetch()
+      }
+    })
+
     const channel = supabase
       .channel('ministries-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ministries' }, refetch)
@@ -87,7 +93,10 @@ export function MinistriesProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_profiles' }, refetch)
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      subscription.unsubscribe()
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   return (

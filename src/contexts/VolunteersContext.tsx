@@ -93,7 +93,20 @@ export function VolunteersProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // Fetch immediately (session may already be restored from localStorage)
     fetchVolunteers()
+
+    // Re-fetch when auth state settles — covers the race condition where
+    // the Supabase session is restored after the first fetch fires (returning
+    // empty results due to RLS) and when the user logs in.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        fetchVolunteers()
+      } else if (event === 'SIGNED_OUT') {
+        setVolunteers([])
+        setLoading(false)
+      }
+    })
 
     const channel = supabase
       .channel('volunteers-realtime')
@@ -132,7 +145,10 @@ export function VolunteersProvider({ children }: { children: ReactNode }) {
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      subscription.unsubscribe()
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   return (
