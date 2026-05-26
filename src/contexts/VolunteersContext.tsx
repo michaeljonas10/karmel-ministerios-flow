@@ -13,8 +13,8 @@ function mapRow(v: Record<string, unknown>): Volunteer {
     email: v.email as string | undefined,
     registeredAt: v.registered_at as string,
     ministryId: v.ministry_id as string,
-    subArea: v.sub_area as string,
-    coordinator: v.coordinator as string,
+    subArea: (v.sub_area as string) ?? '',
+    coordinator: (v.coordinator as string) ?? '',
     currentStage: v.current_stage as Volunteer['currentStage'],
     stageHistory: ((v.stage_history as { stage: string; date: string; note?: string }[]) || []).map(h => ({
       stage: h.stage as Volunteer['currentStage'],
