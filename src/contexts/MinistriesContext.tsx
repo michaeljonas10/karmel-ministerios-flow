@@ -78,11 +78,16 @@ export function MinistriesProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    refetch()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setMinistries([])
+        setLoading(false)
+        return
+      }
+      if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
         refetch()
+      } else if (event === 'INITIAL_SESSION' && !session) {
+        setLoading(false)
       }
     })
 

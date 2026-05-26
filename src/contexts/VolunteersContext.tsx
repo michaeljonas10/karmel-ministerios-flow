@@ -57,10 +57,11 @@ const VolunteersContext = createContext<VolunteersContextType>({
 })
 
 export function VolunteersProvider({ children }: { children: ReactNode }) {
-  const [volunteers, setVolunteers] = useState<Volunteer[]>(mockVolunteers)
+  const [volunteers, setVolunteers] = useState<Volunteer[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchVolunteers = async () => {
+    setLoading(true)
     const { data, error } = await supabase
       .from('volunteers')
       .select('*, stage_history(*)')
@@ -93,16 +94,20 @@ export function VolunteersProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Fetch immediately (session may already be restored from localStorage)
-    fetchVolunteers()
-
-    // Re-fetch when auth state settles — covers the race condition where
-    // the Supabase session is restored after the first fetch fires (returning
-    // empty results due to RLS) and when the user logs in.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+    // onAuthStateChange fires INITIAL_SESSION synchronously on the next tick
+    // when registered — guaranteed to have the correct session state.
+    // This replaces the blind first fetch (which raced against session restore).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setVolunteers([])
+        setLoading(false)
+        return
+      }
+      // INITIAL_SESSION fires immediately; SIGNED_IN fires after login
+      if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
         fetchVolunteers()
-      } else if (event === 'SIGNED_OUT') {
+      } else if (event === 'INITIAL_SESSION' && !session) {
+        // Not logged in — nothing to load
         setVolunteers([])
         setLoading(false)
       }
@@ -118,7 +123,6 @@ export function VolunteersProvider({ children }: { children: ReactNode }) {
             setVolunteers(prev => prev.filter(v => v.id !== (payload.old as { id: string }).id))
             return
           }
-          // Se foi arquivado, remove da lista ativa
           if ((payload.new as Record<string, unknown>).archived_at) {
             setVolunteers(prev => prev.filter(v => v.id !== (payload.new as { id: string }).id))
             return
@@ -128,7 +132,6 @@ export function VolunteersProvider({ children }: { children: ReactNode }) {
           setVolunteers(prev => {
             const idx = prev.findIndex(v => v.id === updated.id)
             if (idx >= 0) return prev.map((v, i) => i === idx ? updated : v)
-            // INSERT de novo voluntário (ex: desarquivado) — inclui se sem archived_at
             return updated.archivedAt ? prev : [updated, ...prev]
           })
         }
