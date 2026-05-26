@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { LayoutGrid, List, Search, Users, CheckSquare, Square, ChevronRight, Download, X, Tag } from 'lucide-react';
+import { LayoutGrid, List, Search, Users, CheckSquare, Square, ChevronRight, Download, X, Tag, Upload } from 'lucide-react';
+import CsvImportModal from '../components/CsvImportModal';
 import { useMinistries } from '../contexts/MinistriesContext';
 import { getDaysSinceLastContact } from '../data/volunteers';
 import { STAGE_ORDER, STAGE_LABELS, OFF_TRACK_STAGES, HOW_FOUND_OPTIONS } from '../types';
@@ -73,7 +74,8 @@ export default function MinistryPanel() {
   const [bulkApplying, setBulkApplying] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<JourneyStage | null>(null);
-  const { volunteers, loading, setVolunteers } = useVolunteers();
+  const [showImport, setShowImport] = useState(false);
+  const { volunteers, loading, setVolunteers, refetch } = useVolunteers();
 
   // Load capacities from localStorage (capacity per sub-area, keyed by subAreaName)
   const capacities: Record<string, number> = useMemo(() => {
@@ -318,6 +320,14 @@ export default function MinistryPanel() {
             />
           </div>
           <div className="flex items-center gap-2">
+            {/* Import CSV */}
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl font-medium transition-colors"
+            >
+              <Upload size={15} />
+              Importar CSV
+            </button>
             {/* Period filter */}
             <select
               value={periodFilter}
@@ -474,6 +484,18 @@ export default function MinistryPanel() {
             )}
           </div>
         </div>
+      )}
+
+      {/* CSV Import Modal */}
+      {showImport && (
+        <CsvImportModal
+          defaultMinistryId={ministry.id}
+          onClose={() => setShowImport(false)}
+          onImported={() => {
+            setShowImport(false);
+            refetch();
+          }}
+        />
       )}
 
       {/* Kanban View */}

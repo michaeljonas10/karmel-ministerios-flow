@@ -9,8 +9,9 @@ import {
   Settings, Church, Link2, Users, Copy, Check, Plus, X, Pencil, Trash2, ChevronDown, ChevronUp,
   Eye, EyeOff, UserPlus, ShieldCheck, User, Palette, Key, Bell, BellOff, BellRing,
   Camera, Music, Baby, Zap, Heart, Home, Star, Shield, BookOpen, Globe, Cross, Mic, Film, Radio, Tv, Headphones, Volume2,
-  Car, Coffee, Megaphone, Flame, Waves, Gift, Monitor, Flower2, Utensils, Bus, Paintbrush, HandHeart, Scissors, Smile,
+  Car, Coffee, Megaphone, Flame, Waves, Gift, Monitor, Flower2, Utensils, Bus, Paintbrush, HandHeart, Scissors, Smile, Upload,
 } from 'lucide-react';
+import CsvImportModal from '../components/CsvImportModal';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import type { Ministry, SubArea, JourneyStage } from '../types';
 import { STAGE_LABELS, STAGE_ORDER } from '../types';
@@ -1711,7 +1712,88 @@ function TabNotificacoes() {
   );
 }
 
-type Tab = 'igreja' | 'link' | 'ministerios' | 'usuarios' | 'aparencia' | 'automacoes' | 'notificacoes' | 'acessos';
+// ─── Tab Importar ────────────────────────────────────────────────────────────
+function TabImportar() {
+  const { ministries } = useMinistries();
+  const [showModal, setShowModal] = useState(false);
+  const [selectedMinistry, setSelectedMinistry] = useState('');
+  const [imported, setImported] = useState(0);
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+            <Upload size={20} className="text-indigo-600" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-gray-800">Importar Voluntários via CSV</h2>
+            <p className="text-sm text-gray-500">Importe contatos em lote com normalização automática de dados</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ministério de destino</label>
+            <select
+              value={selectedMinistry}
+              onChange={e => setSelectedMinistry(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            >
+              <option value="">Selecione um ministério...</option>
+              {ministries.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            disabled={!selectedMinistry}
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            <Upload size={16} />
+            Abrir assistente de importação
+          </button>
+
+          {imported > 0 && (
+            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+              {imported} voluntário{imported !== 1 ? 's' : ''} importado{imported !== 1 ? 's' : ''} com sucesso.
+            </p>
+          )}
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Campos suportados</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {['Nome', 'Telefone', 'E-mail', 'Data de nascimento', 'Participa GC', 'Como chegou', 'Observações', 'Etapa', 'Sub-área', 'Coordenador'].map(f => (
+              <div key={f} className="flex items-center gap-1.5 text-xs text-gray-600">
+                <Check size={12} className="text-green-500 flex-shrink-0" />
+                {f}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-3">
+            O assistente detecta automaticamente o separador (vírgula ou ponto-e-vírgula) e normaliza telefones, datas e booleanos.
+          </p>
+        </div>
+      </div>
+
+      {showModal && (
+        <CsvImportModal
+          defaultMinistryId={selectedMinistry}
+          onClose={() => setShowModal(false)}
+          onImported={(count) => {
+            setImported(prev => prev + count);
+            setShowModal(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+type Tab = 'igreja' | 'link' | 'ministerios' | 'usuarios' | 'aparencia' | 'automacoes' | 'notificacoes' | 'acessos' | 'importar';
 
 const ALL_TABS: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean; superAdminOnly?: boolean }[] = [
   { id: 'igreja', label: 'Igreja', icon: <Church size={16} /> },
@@ -1720,6 +1802,7 @@ const ALL_TABS: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boo
   { id: 'usuarios', label: 'Usuários', icon: <UserPlus size={16} />, adminOnly: true },
   { id: 'aparencia', label: 'Aparência', icon: <Palette size={16} /> },
   { id: 'automacoes', label: 'Automações', icon: <Zap size={16} />, adminOnly: true },
+  { id: 'importar', label: 'Importar CSV', icon: <Upload size={16} />, adminOnly: true },
   { id: 'notificacoes', label: 'Notificações', icon: <Bell size={16} /> },
   { id: 'acessos', label: 'Acessos', icon: <ShieldCheck size={16} />, superAdminOnly: true },
 ];
@@ -1778,6 +1861,7 @@ export default function Configuracoes() {
         {activeTab === 'usuarios' && isAdmin && <TabUsuarios onToast={showToast} />}
         {activeTab === 'aparencia' && <TabAparencia />}
         {activeTab === 'automacoes' && isAdmin && <TabAutomacoes ministries={ministries} onToast={showToast} />}
+        {activeTab === 'importar' && isAdmin && <TabImportar />}
         {activeTab === 'notificacoes' && <TabNotificacoes />}
         {activeTab === 'acessos' && effectiveSuperAdmin && <TabAcessos />}
       </div>
