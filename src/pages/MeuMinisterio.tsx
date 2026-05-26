@@ -914,16 +914,19 @@ export default function MeuMinisterio() {
   const ministryVolunteers = volunteers.filter(v => v.ministryId === profile?.ministry_id)
   const myVolunteers = isCoordinator
     // Coordinator sees:
-    //   1. Volunteers in their assigned sub-areas
-    //   2. Unassigned volunteers that nobody has claimed yet (coordinator === '')
-    //   3. Unassigned volunteers that THIS coordinator already claimed (coordinator === my name)
+    //   1. Volunteers in their assigned sub-areas (by sub-area name)
+    //   2. Fallback: volunteers whose coordinator field matches my name
+    //      (covers profile.sub_areas ID mismatches or sub-area renames)
+    //   3. Unassigned volunteers that nobody has claimed yet (coordinator === '')
+    //   4. Unassigned volunteers that THIS coordinator already claimed (coordinator === my name)
     //      → prevents other coordinators from seeing them after claim
     ? volunteers.filter(v => {
         if (v.ministryId !== profile?.ministry_id) return false
-        if (mySubAreaNames.includes(v.subArea)) return true  // assigned to my area
-        if (v.subArea !== '') return false                   // assigned to another area
-        // Unassigned: show if unclaimed OR claimed by me
-        return v.coordinator === '' || v.coordinator === profile?.name
+        if (mySubAreaNames.includes(v.subArea)) return true         // assigned to my area (name match)
+        if (profile?.name && v.coordinator === profile.name) return true  // fallback: my name in coordinator field
+        if (v.subArea !== '') return false                          // assigned to another area, not mine
+        if (v.coordinator !== '' && v.coordinator !== profile?.name) return false  // claimed by another coordinator
+        return true                                                  // unclaimed / unassigned
       })
     : ministryVolunteers
 
