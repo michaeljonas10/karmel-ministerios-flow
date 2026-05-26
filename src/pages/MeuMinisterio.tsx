@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
-  Search, Users, CheckCircle, AlertTriangle, LogOut,
+  Search, Users, CheckCircle, AlertTriangle,
   ChevronRight, Plus, Pencil, Trash2, X, UserPlus, Eye, EyeOff,
   LayoutGrid, List, TrendingUp, Award, Clock, ShieldCheck, Tag,
 } from 'lucide-react'
@@ -868,8 +868,7 @@ function CoordKanban({ volunteers, onMove, accentColor }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function MeuMinisterio() {
   usePageTitle('Meu Ministério')
-  const { profile, signOut, isLeader, isCoordinator } = useAuth()
-  const navigate = useNavigate()
+  const { profile, isLeader, isCoordinator } = useAuth()
   const { volunteers, loading: volLoading, setVolunteers } = useVolunteers()
   const { ministries, loading: minLoading } = useMinistries()
   const [toast, setToast] = useState('')
@@ -1043,10 +1042,6 @@ export default function MeuMinisterio() {
 
   const loading = volLoading || minLoading
 
-  const roleBadge = isLeader
-    ? { label: 'Líder de Ministério', cls: 'bg-amber-100 text-amber-700' }
-    : { label: 'Coordenador', cls: 'bg-purple-100 text-purple-700' }
-
   const panelTitle = isLeader
     ? (ministry ? `Ministério ${ministry.name}` : 'Meu Ministério')
     : isCoordinator && mySubAreas.length > 0
@@ -1198,39 +1193,10 @@ export default function MeuMinisterio() {
   })() : null
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: 'var(--body-bg)' }}>
+    <div>
       {CadastroModal}
-      {/* Header */}
-      <header
-        className="border-b px-4 lg:px-8 py-3 flex items-center justify-between gap-3"
-        style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--header-border)' }}
-      >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <img src="/pulse-logo.svg" alt="Pulse" className="w-8 h-8 rounded-lg flex-shrink-0" />
-          <div className="min-w-0">
-            <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-secondary)' }}>Pulse</p>
-            <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>Painel de Acesso</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="text-right hidden sm:block">
-            <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{profile?.name}</p>
-            <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${roleBadge.cls}`}>
-              {roleBadge.label}
-            </span>
-          </div>
-          <button
-            onClick={() => signOut().then(() => navigate('/login'))}
-            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg transition-colors flex-shrink-0"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            <LogOut size={16} />
-            <span className="hidden sm:inline">Sair</span>
-          </button>
-        </div>
-      </header>
 
-      <main className="px-3 py-4 sm:px-4 lg:px-8 max-w-5xl mx-auto space-y-5">
+      <div className="px-3 py-4 sm:px-4 lg:px-8 max-w-5xl mx-auto space-y-5">
         {/* Title row — leaders only (coordinator has hero card) */}
         {isLeader && (
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1553,7 +1519,7 @@ export default function MeuMinisterio() {
             )}
           </>
         )}
-      </main>
+      </div>
 
       {showSubAreaModal && profile?.ministry_id && (
         <ManageSubAreasModal

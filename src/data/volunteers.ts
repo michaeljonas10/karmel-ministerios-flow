@@ -773,7 +773,11 @@ export function getVolunteersByMinistry(ministryId: string): Volunteer[] {
 export function getDaysSinceLastContact(volunteer: Volunteer): number {
   const last = new Date(volunteer.lastContactDate);
   const now = new Date();
-  return Math.floor((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+  // Compare calendar days in local timezone — raw ms diff causes off-by-one
+  // when the stored UTC timestamp crosses midnight differently in the local TZ.
+  const lastDay = new Date(last.getFullYear(), last.getMonth(), last.getDate());
+  const today   = new Date(now.getFullYear(),  now.getMonth(),  now.getDate());
+  return Math.round((today.getTime() - lastDay.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 export function getAlertVolunteers(threshold = 7): Volunteer[] {

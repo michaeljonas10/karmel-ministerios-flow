@@ -17,7 +17,11 @@ import { supabase } from '../lib/supabase';
 import { buildTemplate } from '../data/waTemplates';
 
 function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
+  if (!dateStr) return dateStr;
+  // Force local-timezone interpretation: if it's a date-only string (YYYY-MM-DD)
+  // appending T12:00:00 avoids UTC midnight shifting the date by ±1 day.
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr + 'T12:00:00' : dateStr;
+  const d = new Date(normalized);
   if (isNaN(d.getTime())) return dateStr;
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }

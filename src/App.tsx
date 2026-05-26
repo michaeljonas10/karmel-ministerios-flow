@@ -61,22 +61,20 @@ function AppRoutes() {
       <Route path="/esqueci-senha" element={<EsqueciSenha />} />
       <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
-      {/* Coordinator-only route (no sidebar) */}
-      <Route
-        path="/meu-ministerio"
-        element={
-          <ProtectedRoute>
-            <MeuMinisterio />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* App routes wrapped in Layout — admin only paths */}
+      {/* App routes wrapped in Layout */}
       <Route
         path="/*"
         element={
           <Layout>
             <Routes>
+              <Route
+                path="/meu-ministerio"
+                element={
+                  <ProtectedRoute>
+                    <MeuMinisterio />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/"
                 element={
