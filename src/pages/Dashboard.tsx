@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import {
@@ -7,11 +7,13 @@ import {
 } from 'recharts';
 import { Users, TrendingUp, Award, AlertTriangle, Phone, UserPlus, X, Check, Upload, Cake } from 'lucide-react';
 import ImportModal from '../components/ImportModal';
+import PendingInfoModal, { SESSION_KEY } from '../components/PendingInfoModal';
 import { getDaysSinceLastContact } from '../data/volunteers';
 import { STAGE_LABELS, STAGE_ORDER } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
 import { useVolunteers } from '../hooks/useVolunteers';
 import { useMinistries } from '../hooks/useMinistries';
+import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
 function KPICard({
@@ -220,9 +222,32 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { volunteers, loading, refetch } = useVolunteers();
   const { ministries } = useMinistries();
+  const { profile } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [activityRanking, setActivityRanking] = useState<{ name: string; score: number }[]>([]);
+  const [showPendingModal, setShowPendingModal] = useState(false);
+
+  // Resolve sub-area names for current coordinator
+  const mySubAreaNames = useMemo(() => {
+    if (!profile || profile.role !== 'coordinator') return [];
+    const ministry = ministries.find(m => m.id === profile.ministry_id);
+    if (!ministry) return [];
+    const stripPfx = (id: string) => id.replace(/^[^-]+-/, '');
+    return (profile.sub_areas ?? [])
+      .map(id => ministry.subAreas.find(sa => sa.id === id || stripPfx(sa.id) === stripPfx(id))?.name ?? null)
+      .filter(Boolean) as string[];
+  }, [profile, ministries]);
+
+  // Show pending info modal once per session for coordinators
+  useEffect(() => {
+    if (loading) return;
+    if (!profile || profile.role !== 'coordinator') return;
+    if (sessionStorage.getItem(SESSION_KEY)) return;
+    // Delay slightly so page renders first
+    const t = setTimeout(() => setShowPendingModal(true), 800);
+    return () => clearTimeout(t);
+  }, [loading, profile]);
 
   useEffect(() => {
     async function fetchActivity() {
@@ -365,6 +390,14 @@ export default function Dashboard() {
         <ImportModal
           onClose={() => setShowImportModal(false)}
           onImported={() => { refetch(); setShowImportModal(false); }}
+        />
+      )}
+
+      {showPendingModal && (
+        <PendingInfoModal
+          volunteers={volunteers}
+          mySubAreaNames={mySubAreaNames}
+          onClose={() => { setShowPendingModal(false); refetch(); }}
         />
       )}
 
