@@ -6,18 +6,20 @@ import { getDaysSinceLastContact } from '../data/volunteers';
 
 interface VolunteerCardProps {
   volunteer: Volunteer;
+  embedded?: boolean; // quando true, remove borda/shadow/radius próprios (DraggableCard cuida)
 }
 
-export default function VolunteerCard({ volunteer }: VolunteerCardProps) {
+export default function VolunteerCard({ volunteer, embedded }: VolunteerCardProps) {
   const navigate = useNavigate();
   const days = getDaysSinceLastContact(volunteer);
   const isAlert = days >= 7;
 
   return (
     <div
-      className={`bg-white rounded-lg p-3 shadow-sm border hover:shadow-md transition-shadow
-        ${isAlert ? 'border-orange-200' : 'border-gray-100'}
-      `}
+      className={embedded
+        ? `p-3 hover:bg-gray-50 transition-colors cursor-pointer ${isAlert ? 'border-l-2 border-orange-300' : ''}`
+        : `bg-white rounded-lg p-3 shadow-sm border hover:shadow-md transition-shadow ${isAlert ? 'border-orange-200' : 'border-gray-100'}`
+      }
       onClick={() => navigate(`/voluntario/${volunteer.id}`)}
     >
       <div className="flex items-start justify-between mb-2">

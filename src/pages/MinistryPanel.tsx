@@ -29,18 +29,23 @@ function DraggableCard({ volunteer }: { volunteer: Volunteer }) {
   const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: volunteer.id });
   return (
-    <div ref={setNodeRef} {...attributes} style={{ opacity: isDragging ? 0.4 : 1, position: 'relative' }}>
-      {/* Drag handle — top-left grip, does not interfere with card click */}
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden"
+      style={{ opacity: isDragging ? 0.4 : 1 }}
+    >
+      {/* Drag handle — faixa fina no topo, separada do conteúdo */}
       <div
         {...listeners}
         style={{ touchAction: 'none' }}
-        className="absolute top-1.5 left-1.5 z-10 p-1 rounded cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500"
+        className="flex items-center justify-center h-5 bg-gray-50 border-b border-gray-100 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-400 hover:bg-gray-100 transition-colors"
         onClick={e => e.stopPropagation()}
       >
-        <GripVertical size={14} />
+        <GripVertical size={12} />
       </div>
       <div onClick={() => navigate(`/voluntario/${volunteer.id}`)}>
-        <VolunteerCard volunteer={volunteer} />
+        <VolunteerCard volunteer={volunteer} embedded />
       </div>
     </div>
   );
