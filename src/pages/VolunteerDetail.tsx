@@ -41,6 +41,7 @@ export default function VolunteerDetail() {
   const [editValue, setEditValue] = useState('');
   const [templateCopied, setTemplateCopied] = useState(false);
   const [showEncerrar, setShowEncerrar] = useState(false);
+  const [encerrarReason, setEncerrarReason] = useState('');
   const [editLog, setEditLog] = useState<{ field: string; old_value: string | null; new_value: string | null; changed_by: string | null; changed_at: string }[]>([]);
   const [showEditLog, setShowEditLog] = useState(false);
   const [contactLog, setContactLog] = useState<{ id: string; contacted_by: string; contacted_at: string }[]>([]);
@@ -307,10 +308,17 @@ export default function VolunteerDetail() {
     showToast('Atualizado com sucesso!');
   }
 
-  async function archiveVolunteer() {
+  async function archiveVolunteer(reason?: string) {
     if (!volunteer) return;
     const now = new Date().toISOString();
-    await supabase.from('volunteers').update({ archived_at: now }).eq('id', volunteer.id);
+    const userName = profile?.name ?? 'Desconhecido';
+    const dateStr = new Date().toLocaleDateString('pt-BR');
+    const timeStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const reasonSuffix = reason
+      ? `\n\n[Arquivado por ${userName} em ${dateStr} às ${timeStr}]\nMotivo: ${reason}`
+      : '';
+    const updatedNotes = (volunteer.notes || '') + reasonSuffix;
+    await supabase.from('volunteers').update({ archived_at: now, notes: updatedNotes }).eq('id', volunteer.id);
     showToast('Voluntário arquivado.');
     setTimeout(() => navigate('/arquivados'), 1200);
   }
@@ -343,31 +351,44 @@ export default function VolunteerDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
             <h3 className="text-base font-bold text-gray-900 mb-1">Encerrar jornada</h3>
-            <p className="text-sm text-gray-500 mb-5">Escolha o motivo para registrar no histórico.</p>
+            <p className="text-sm text-gray-500 mb-3">Descreva o motivo para registrar no histórico.</p>
+            <textarea
+              value={encerrarReason}
+              onChange={e => setEncerrarReason(e.target.value)}
+              placeholder="Descreva o motivo (mínimo 10 caracteres)..."
+              rows={3}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none mb-4"
+            />
+            {encerrarReason.trim().length > 0 && encerrarReason.trim().length < 10 && (
+              <p className="text-xs text-red-500 -mt-2 mb-3">Mínimo de 10 caracteres.</p>
+            )}
             <div className="space-y-3 mb-5">
               <button
-                onClick={() => { setOffTrack('nao_retornou'); setShowEncerrar(false); }}
-                className="w-full text-left px-4 py-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors"
+                disabled={encerrarReason.trim().length < 10}
+                onClick={() => { setOffTrack('nao_retornou'); setShowEncerrar(false); setEncerrarReason(''); }}
+                className="w-full text-left px-4 py-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <p className="text-sm font-semibold text-red-700">Sem Retorno</p>
                 <p className="text-xs text-red-500 mt-0.5">Voluntário não respondeu aos contatos. Ainda aparece no Follow-up.</p>
               </button>
               <button
-                onClick={() => { setOffTrack('mudou_area'); setShowEncerrar(false); }}
-                className="w-full text-left px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors"
+                disabled={encerrarReason.trim().length < 10}
+                onClick={() => { setOffTrack('mudou_area'); setShowEncerrar(false); setEncerrarReason(''); }}
+                className="w-full text-left px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <p className="text-sm font-semibold text-amber-700">Mudou de Ministério</p>
                 <p className="text-xs text-amber-600 mt-0.5">Está servindo em outra área.</p>
               </button>
               <button
-                onClick={() => { archiveVolunteer(); setShowEncerrar(false); }}
-                className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors"
+                disabled={encerrarReason.trim().length < 10}
+                onClick={() => { archiveVolunteer(encerrarReason.trim()); setShowEncerrar(false); setEncerrarReason(''); }}
+                className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <p className="text-sm font-semibold text-gray-700">Arquivar</p>
                 <p className="text-xs text-gray-500 mt-0.5">Remove de todas as listas. Acessível em Arquivados.</p>
               </button>
             </div>
-            <button onClick={() => setShowEncerrar(false)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">Cancelar</button>
+            <button onClick={() => { setShowEncerrar(false); setEncerrarReason(''); }} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">Cancelar</button>
           </div>
         </div>
       )}
@@ -459,7 +480,7 @@ export default function VolunteerDetail() {
                   </button>
                   <button
                     className="flex items-center gap-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 border border-gray-200 px-3 py-2 rounded-xl font-medium transition-colors text-xs"
-                    onClick={archiveVolunteer}
+                    onClick={() => archiveVolunteer()}
                   >
                     <Archive size={13} />
                     Arquivar
@@ -599,7 +620,11 @@ export default function VolunteerDetail() {
               <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Cadastro</p>
               <div className="flex items-center gap-1.5">
                 <Calendar size={13} className="text-gray-400" />
-                <span className="text-sm text-gray-700">{formatDate(volunteer.registeredAt)}</span>
+                <span className="text-sm text-gray-700">
+                  {volunteer.registeredAt
+                    ? new Date(volunteer.registeredAt).toLocaleString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : '—'}
+                </span>
               </div>
             </div>
             {/* Birthday */}

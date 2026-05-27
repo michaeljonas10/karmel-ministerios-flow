@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Camera, Music, Baby, Zap, Heart, Home,
   Bell, Menu, X, AlertTriangle, Settings, LogOut, ShieldCheck, User, TrendingUp, HelpCircle, Headphones, Archive,
   Star, Shield, BookOpen, Globe, Users, Cross, Mic, Film, Radio, Tv, Volume2,
   Car, Coffee, Megaphone, Flame, Waves, Gift, Monitor, Flower2, Utensils, Bus, Paintbrush, HandHeart, Scissors, Smile, Church,
+  Cake,
 } from 'lucide-react';
 import { useMinistries } from '../contexts/MinistriesContext';
 import { getDaysSinceLastContact } from '../data/volunteers';
@@ -64,14 +65,93 @@ function SideLink({
   )
 }
 
+function isBirthdayToday(birthday: string): boolean {
+  if (!birthday) return false;
+  const today = new Date();
+  const [, mm, dd] = birthday.split('-');
+  return parseInt(mm) === today.getMonth() + 1 && parseInt(dd) === today.getDate();
+}
+
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [bannerIndex, setBannerIndex] = useState(0);
+  const [bannerVisible, setBannerVisible] = useState(true);
   const navigate = useNavigate();
   const { profile, isAdmin, isSuperAdmin, isLeader, signOut } = useAuth();
   const { ministries } = useMinistries();
   const { volunteers: allVolunteers } = useVolunteers();
   const alertCount = allVolunteers.filter(v => v.currentStage !== 'estabelecido' && getDaysSinceLastContact(v) >= 7).length;
+
+  // Build banner messages
+  const bannerMessages = useMemo(() => {
+    const msgs: { text: string; href: string; gradient: string }[] = [];
+
+    // Birthday today volunteers
+    const birthdayToday = allVolunteers.filter(v => v.birthday && isBirthdayToday(v.birthday));
+    birthdayToday.slice(0, 3).forEach(v => {
+      msgs.push({
+        text: `🎂 Hoje é aniversário de ${v.name.split(' ')[0]}!`,
+        href: '/aniversariantes',
+        gradient: 'from-pink-500 to-rose-500',
+      });
+    });
+
+    // Volunteers long without contact
+    const longWithoutContact = allVolunteers
+      .filter(v => v.currentStage !== 'estabelecido' && !['mudou_area', 'nao_retornou'].includes(v.currentStage))
+      .filter(v => getDaysSinceLastContact(v) >= 30)
+      .slice(0, 2);
+    longWithoutContact.forEach(v => {
+      const days = getDaysSinceLastContact(v);
+      msgs.push({
+        text: `⚠️ ${v.name.split(' ')[0]} está há ${days} dias sem contato`,
+        href: `/voluntario/${v.id}`,
+        gradient: 'from-amber-500 to-orange-500',
+      });
+    });
+
+    // Volunteers close to established (1 stage away)
+    const STAGE_ORDER_LOCAL = ['cadastrado','grupo_acolhimento','pesquisa_area','direcionado_area','contato_coordenador','coordenador_contatou','grupo_area','treinamento','primeira_escala','estabelecido'];
+    const closeToEstablished = allVolunteers.filter(v => {
+      const idx = STAGE_ORDER_LOCAL.indexOf(v.currentStage);
+      return idx === STAGE_ORDER_LOCAL.length - 2; // one step before estabelecido
+    }).slice(0, 2);
+    closeToEstablished.forEach(v => {
+      msgs.push({
+        text: `🏆 ${v.name.split(' ')[0]} está a 1 etapa de se tornar Ativo!`,
+        href: `/voluntario/${v.id}`,
+        gradient: 'from-indigo-500 to-violet-500',
+      });
+    });
+
+    // Quick stat
+    const activeCount = allVolunteers.filter(v => v.currentStage === 'estabelecido').length;
+    if (activeCount > 0) {
+      msgs.push({
+        text: `📊 ${activeCount} voluntário${activeCount !== 1 ? 's' : ''} ativo${activeCount !== 1 ? 's' : ''} no ministério`,
+        href: '/',
+        gradient: 'from-teal-500 to-emerald-500',
+      });
+    }
+
+    return msgs;
+  }, [allVolunteers]);
+
+  // Cycle banner messages
+  useEffect(() => {
+    if (bannerMessages.length <= 1) return;
+    const interval = setInterval(() => {
+      setBannerVisible(false);
+      setTimeout(() => {
+        setBannerIndex(prev => (prev + 1) % bannerMessages.length);
+        setBannerVisible(true);
+      }, 400);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [bannerMessages.length]);
+
+  const currentBanner = bannerMessages[bannerIndex % Math.max(bannerMessages.length, 1)];
 
 
 
@@ -137,6 +217,7 @@ export default function Layout({ children }: LayoutProps) {
               <SideLink to="/follow-up" icon={<AlertTriangle size={18} />} label="Follow-up" badge={alertCount > 0 ? alertCount : undefined} onClose={() => setSidebarOpen(false)} />
               <SideLink to="/arquivados" icon={<Archive size={18} />} label="Arquivados" onClose={() => setSidebarOpen(false)} />
               <SideLink to="/metricas" icon={<TrendingUp size={18} />} label="Métricas" onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/aniversariantes" icon={<Cake size={18} />} label="Aniversariantes" onClose={() => setSidebarOpen(false)} />
 
               <div className="pt-4 pb-1">
                 <p className="text-xs font-semibold uppercase tracking-wider px-3" style={{ color: 'var(--sidebar-muted)' }}>Sistema</p>
@@ -157,6 +238,7 @@ export default function Layout({ children }: LayoutProps) {
               <SideLink to="/follow-up" icon={<AlertTriangle size={18} />} label="Follow-up" badge={alertCount > 0 ? alertCount : undefined} onClose={() => setSidebarOpen(false)} />
               <SideLink to="/arquivados" icon={<Archive size={18} />} label="Arquivados" onClose={() => setSidebarOpen(false)} />
               <SideLink to="/metricas" icon={<TrendingUp size={18} />} label="Métricas" onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/aniversariantes" icon={<Cake size={18} />} label="Aniversariantes" onClose={() => setSidebarOpen(false)} />
               <SideLink to="/ajuda" icon={<HelpCircle size={18} />} label="Ajuda & Suporte" onClose={() => setSidebarOpen(false)} />
             </>
           )}
@@ -167,6 +249,7 @@ export default function Layout({ children }: LayoutProps) {
               <SideLink to="/meu-ministerio" icon={<User size={18} />} label="Minha Sub-área" onClose={() => setSidebarOpen(false)} />
               <SideLink to="/arquivados" icon={<Archive size={18} />} label="Arquivados" onClose={() => setSidebarOpen(false)} />
               <SideLink to="/metricas" icon={<TrendingUp size={18} />} label="Métricas" onClose={() => setSidebarOpen(false)} />
+              <SideLink to="/aniversariantes" icon={<Cake size={18} />} label="Aniversariantes" onClose={() => setSidebarOpen(false)} />
               <SideLink to="/ajuda" icon={<HelpCircle size={18} />} label="Ajuda & Suporte" onClose={() => setSidebarOpen(false)} />
             </>
           )}
@@ -265,6 +348,17 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
         </header>
+
+        {/* Dynamic banner strip */}
+        {currentBanner && (
+          <button
+            onClick={() => navigate(currentBanner.href)}
+            className={`w-full flex items-center justify-center px-4 h-11 text-white text-sm font-medium bg-gradient-to-r ${currentBanner.gradient} transition-opacity duration-400 flex-shrink-0 truncate hover:opacity-90`}
+            style={{ opacity: bannerVisible ? 1 : 0 }}
+          >
+            <span className="truncate">{currentBanner.text}</span>
+          </button>
+        )}
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">

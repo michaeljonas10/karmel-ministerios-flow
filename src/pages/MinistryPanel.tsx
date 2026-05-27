@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { LayoutGrid, List, Search, Users, CheckSquare, Square, ChevronRight, Download, X, Tag, Upload } from 'lucide-react';
+import { LayoutGrid, List, Search, Users, CheckSquare, Square, ChevronRight, Download, X, Tag, Upload, GripVertical } from 'lucide-react';
 import CsvImportModal from '../components/CsvImportModal';
 import { useMinistries } from '../contexts/MinistriesContext';
 import { getDaysSinceLastContact } from '../data/volunteers';
-import { STAGE_ORDER, STAGE_LABELS, OFF_TRACK_STAGES, HOW_FOUND_OPTIONS } from '../types';
+import { STAGE_ORDER, STAGE_LABELS, HOW_FOUND_OPTIONS } from '../types';
 import type { JourneyStage, Volunteer } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
 import VolunteerCard from '../components/VolunteerCard';
@@ -26,32 +26,32 @@ import {
 } from '@dnd-kit/core';
 
 function DraggableCard({ volunteer }: { volunteer: Volunteer }) {
+  const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: volunteer.id });
   return (
-    <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      style={{ opacity: isDragging ? 0.4 : 1, touchAction: 'none' }}
-    >
-      <VolunteerCard volunteer={volunteer} />
+    <div ref={setNodeRef} {...attributes} style={{ opacity: isDragging ? 0.4 : 1, position: 'relative' }}>
+      {/* Drag handle — top-left grip, does not interfere with card click */}
+      <div
+        {...listeners}
+        style={{ touchAction: 'none' }}
+        className="absolute top-1.5 left-1.5 z-10 p-1 rounded cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500"
+        onClick={e => e.stopPropagation()}
+      >
+        <GripVertical size={14} />
+      </div>
+      <div onClick={() => navigate(`/voluntario/${volunteer.id}`)}>
+        <VolunteerCard volunteer={volunteer} />
+      </div>
     </div>
   );
 }
 
 function DroppableColumn({
-  stage, children, isOver, offTrack = false,
-}: { stage: JourneyStage; children: React.ReactNode; isOver: boolean; offTrack?: boolean }) {
+  stage, children, isOver,
+}: { stage: JourneyStage; children: React.ReactNode; isOver: boolean }) {
   const { setNodeRef } = useDroppable({ id: stage });
-  const isAmber = stage === 'mudou_area';
   let cls = 'rounded-b-xl min-h-24 p-2 space-y-2 transition-colors ';
-  if (offTrack) {
-    cls += isOver
-      ? isAmber ? 'bg-amber-50 ring-2 ring-amber-300 ring-inset' : 'bg-red-50 ring-2 ring-red-300 ring-inset'
-      : isAmber ? 'bg-amber-50/40' : 'bg-red-50/40';
-  } else {
-    cls += isOver ? 'bg-indigo-50 ring-2 ring-indigo-300 ring-inset' : 'bg-gray-50';
-  }
+  cls += isOver ? 'bg-indigo-50 ring-2 ring-indigo-300 ring-inset' : 'bg-gray-50';
   return (
     <div ref={setNodeRef} className={cls}>
       {children}
@@ -75,6 +75,8 @@ export default function MinistryPanel() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<JourneyStage | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [sortCol, setSortCol] = useState<'name' | 'days' | 'registeredAt' | 'area' | 'stage' | 'coordinator' | 'lastContact'>('days');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const { volunteers, loading, setVolunteers, refetch } = useVolunteers();
 
   // Load capacities from localStorage (capacity per sub-area, keyed by subAreaName)
@@ -103,10 +105,21 @@ export default function MinistryPanel() {
     );
   }
 
+  function handleSort(col: typeof sortCol) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('desc'); }
+  }
+  const SortIcon = ({ col }: { col: typeof sortCol }) => {
+    if (sortCol !== col) return <span className="ml-1 text-gray-300">↕</span>;
+    return <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  };
+
   const allVolunteers = volunteers.filter(v => v.ministryId === ministry.id);
   const filtered = allVolunteers
     .filter(v => {
-      if (subAreaFilter !== 'all' && v.subArea !== subAreaFilter) return false;
+      if (['mudou_area', 'nao_retornou'].includes(v.currentStage)) return false;
+      if (subAreaFilter !== 'all' && subAreaFilter !== '__sem_area__' && v.subArea !== subAreaFilter) return false;
+      if (subAreaFilter === '__sem_area__' && v.subArea !== '') return false;
       const q = search.toLowerCase();
       if (q && !v.name.toLowerCase().includes(q) &&
           !v.subArea.toLowerCase().includes(q) &&
@@ -117,7 +130,17 @@ export default function MinistryPanel() {
       }
       return true;
     })
-    .sort((a, b) => getDaysSinceLastContact(b) - getDaysSinceLastContact(a));
+    .sort((a, b) => {
+      let cmp = 0;
+      if (sortCol === 'days') cmp = getDaysSinceLastContact(b) - getDaysSinceLastContact(a);
+      else if (sortCol === 'name') cmp = a.name.localeCompare(b.name, 'pt-BR');
+      else if (sortCol === 'registeredAt') cmp = new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime();
+      else if (sortCol === 'area') cmp = (a.subArea || '').localeCompare(b.subArea || '', 'pt-BR');
+      else if (sortCol === 'stage') cmp = a.currentStage.localeCompare(b.currentStage);
+      else if (sortCol === 'coordinator') cmp = (a.coordinator || '').localeCompare(b.coordinator || '', 'pt-BR');
+      else if (sortCol === 'lastContact') cmp = new Date(b.lastContactDate).getTime() - new Date(a.lastContactDate).getTime();
+      return sortDir === 'asc' ? -cmp : cmp;
+    });
 
   function toggleSelect(id: string) {
     setSelected(prev => {
@@ -191,11 +214,9 @@ export default function MinistryPanel() {
     setActiveId(event.active.id as string);
   }
 
-  const ALL_KANBAN_STAGES = [...STAGE_ORDER, ...OFF_TRACK_STAGES];
-
   function handleDragOver(event: DragOverEvent) {
     const stage = event.over?.id as JourneyStage | null;
-    setOverStage(ALL_KANBAN_STAGES.includes(stage as JourneyStage) ? stage : null);
+    setOverStage(STAGE_ORDER.includes(stage as JourneyStage) ? stage : null);
   }
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -204,7 +225,7 @@ export default function MinistryPanel() {
     const { active, over } = event;
     if (!over) return;
     const targetStage = over.id as JourneyStage;
-    if (ALL_KANBAN_STAGES.includes(targetStage)) {
+    if (STAGE_ORDER.includes(targetStage)) {
       await moveToStage(active.id as string, targetStage);
     }
   }
@@ -239,7 +260,7 @@ export default function MinistryPanel() {
             <p className="text-white/70 text-xs">Estabelecidos</p>
           </div>
           <div>
-            <p className="text-xl font-bold">{allVolunteers.filter(v => !OFF_TRACK_STAGES.includes(v.currentStage) && v.currentStage !== 'estabelecido').length}</p>
+            <p className="text-xl font-bold">{allVolunteers.filter(v => !['mudou_area','nao_retornou'].includes(v.currentStage) && v.currentStage !== 'estabelecido').length}</p>
             <p className="text-white/70 text-xs">Em Jornada</p>
           </div>
         </div>
@@ -303,6 +324,15 @@ export default function MinistryPanel() {
               </div>
             );
           })}
+        </div>
+        {/* Sem área filter button */}
+        <div className="mt-3">
+          <button
+            onClick={() => setSubAreaFilter(subAreaFilter === '__sem_area__' ? 'all' : '__sem_area__')}
+            className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${subAreaFilter === '__sem_area__' ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}`}
+          >
+            Sem área
+          </button>
         </div>
       </div>
 
@@ -420,13 +450,25 @@ export default function MinistryPanel() {
                         : <Square size={15} />}
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3">Nome</th>
-                  <th className="text-left px-5 py-3">Área</th>
-                  <th className="text-left px-5 py-3">Coordenador</th>
-                  <th className="text-left px-5 py-3">Como chegou</th>
-                  <th className="text-left px-5 py-3">Etapa</th>
-                  <th className="text-left px-5 py-3">Último Contato</th>
-                  <th className="text-left px-5 py-3">Telefone</th>
+                  {[
+                    { col: 'name' as const, label: 'Nome' },
+                    { col: 'area' as const, label: 'Área' },
+                    { col: 'coordinator' as const, label: 'Coordenador' },
+                    { col: null, label: 'Como chegou' },
+                    { col: 'stage' as const, label: 'Etapa' },
+                    { col: 'days' as const, label: 'Sem Contato' },
+                    { col: 'lastContact' as const, label: 'Último Contato' },
+                    { col: 'registeredAt' as const, label: 'Cadastrado' },
+                    { col: null, label: 'Telefone' },
+                  ].map(({ col, label }) => (
+                    <th
+                      key={label}
+                      className={`text-left px-5 py-3 ${col ? 'cursor-pointer hover:text-gray-600 select-none' : ''}`}
+                      onClick={() => col && handleSort(col)}
+                    >
+                      {label}{col && <SortIcon col={col} />}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -468,6 +510,12 @@ export default function MinistryPanel() {
                           {days === 0 ? 'Hoje' : `${days} dias`}
                         </span>
                       </td>
+                      <td className="px-5 py-3.5 text-xs text-gray-500 whitespace-nowrap">
+                        {v.lastContactDate ? new Date(v.lastContactDate).toLocaleDateString('pt-BR') : '—'}
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-gray-400 whitespace-nowrap">
+                        {v.registeredAt ? new Date(v.registeredAt).toLocaleDateString('pt-BR') : '—'}
+                      </td>
                       <td className="px-5 py-3.5">
                         <span className="text-sm text-gray-500 font-mono">{v.phone}</span>
                       </td>
@@ -508,7 +556,7 @@ export default function MinistryPanel() {
         >
           <div className="overflow-x-auto pb-4">
             <div className="flex gap-4 min-w-max">
-              {/* Track columns */}
+              {/* Track columns only — off-track columns removed */}
               {STAGE_ORDER.map(stage => {
                 const stageVolunteers = filtered.filter(v => v.currentStage === stage);
                 const isOver = overStage === stage;
@@ -526,40 +574,6 @@ export default function MinistryPanel() {
                       ))}
                       {stageVolunteers.length === 0 && (
                         <div className={`text-center py-6 text-xs ${isOver ? 'text-indigo-400' : 'text-gray-300'}`}>
-                          {isOver ? 'Soltar aqui' : 'Vazio'}
-                        </div>
-                      )}
-                    </DroppableColumn>
-                  </div>
-                );
-              })}
-
-              {/* Divider */}
-              <div className="flex-shrink-0 flex items-start pt-2">
-                <div className="w-px bg-gray-200 self-stretch mx-1" />
-              </div>
-
-              {/* Off-track columns */}
-              {OFF_TRACK_STAGES.map(stage => {
-                const stageVolunteers = filtered.filter(v => v.currentStage === stage);
-                const isOver = overStage === stage;
-                const isAmber = stage === 'mudou_area';
-                return (
-                  <div key={stage} className="w-56 flex-shrink-0">
-                    <div className={`rounded-t-xl px-3 py-2 flex items-center justify-between ${isAmber ? 'bg-amber-50' : 'bg-red-50'}`}>
-                      <p className={`text-xs font-semibold leading-tight ${isAmber ? 'text-amber-700' : 'text-red-600'}`}>
-                        {STAGE_LABELS[stage]}
-                      </p>
-                      <span className={`text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${isAmber ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>
-                        {stageVolunteers.length}
-                      </span>
-                    </div>
-                    <DroppableColumn stage={stage} isOver={isOver} offTrack>
-                      {stageVolunteers.map(v => (
-                        <DraggableCard key={v.id} volunteer={v} />
-                      ))}
-                      {stageVolunteers.length === 0 && (
-                        <div className={`text-center py-6 text-xs ${isOver ? (isAmber ? 'text-amber-400' : 'text-red-400') : 'text-gray-300'}`}>
                           {isOver ? 'Soltar aqui' : 'Vazio'}
                         </div>
                       )}

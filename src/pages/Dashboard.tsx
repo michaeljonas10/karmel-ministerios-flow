@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import {
@@ -221,6 +221,42 @@ export default function Dashboard() {
   const { ministries } = useMinistries();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [activityRanking, setActivityRanking] = useState<{ name: string; score: number }[]>([]);
+
+  useEffect(() => {
+    async function fetchActivity() {
+      // Get contacts logged
+      const { data: contacts } = await supabase
+        .from('contact_log')
+        .select('contacted_by');
+      // Get stage changes by user
+      const { data: stageChanges } = await supabase
+        .from('stage_history')
+        .select('changed_by')
+        .not('changed_by', 'is', null);
+      // Get edits by user
+      const { data: edits } = await supabase
+        .from('volunteer_edit_log')
+        .select('changed_by')
+        .not('changed_by', 'is', null);
+
+      const scoreMap: Record<string, number> = {};
+      const add = (name: string | null, pts: number) => {
+        if (!name) return;
+        scoreMap[name] = (scoreMap[name] ?? 0) + pts;
+      };
+      contacts?.forEach(r => add(r.contacted_by, 3));
+      stageChanges?.forEach(r => add(r.changed_by, 2));
+      edits?.forEach(r => add(r.changed_by, 1));
+
+      const ranked = Object.entries(scoreMap)
+        .map(([name, score]) => ({ name, score }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10);
+      setActivityRanking(ranked);
+    }
+    fetchActivity();
+  }, []);
 
   // KPI calculations
   const total = volunteers.length;
@@ -264,20 +300,7 @@ export default function Dashboard() {
     return weeks;
   }
 
-  // Coordinator stats
-  function getCoordinatorStats() {
-    const stats: Record<string, number> = {};
-    volunteers.forEach(v => {
-      stats[v.coordinator] = (stats[v.coordinator] || 0) + 1;
-    });
-    return Object.entries(stats)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([name, count]) => ({ name, count }));
-  }
-
   const weeklyData = getWeeklyData();
-  const coordinatorStats = getCoordinatorStats();
 
   // Birthday this month
   const todayMonth = new Date().getMonth() + 1;
@@ -497,28 +520,31 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
-        {/* Top Coordinators */}
+        {/* Top Coordinators — activity ranking */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <h2 className="text-base font-semibold text-gray-800 mb-1">Top Coordenadores</h2>
-          <p className="text-xs text-gray-400 mb-4">Voluntários ativos</p>
+          <p className="text-xs text-gray-400 mb-4">Interações na plataforma</p>
           <div className="space-y-3">
-            {coordinatorStats.map((c, i) => (
+            {activityRanking.map((c, i) => (
               <div key={c.name}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm text-gray-700">{c.name}</span>
-                  <span className="text-sm font-semibold text-gray-800">{c.count}</span>
+                  <span className="text-sm font-semibold text-gray-800">{c.score} pts</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-1.5">
                   <div
                     className="h-1.5 rounded-full"
                     style={{
-                      width: coordinatorStats.length > 0 ? `${(c.count / coordinatorStats[0].count) * 100}%` : '0%',
+                      width: activityRanking.length > 0 ? `${(c.score / activityRanking[0].score) * 100}%` : '0%',
                       backgroundColor: i === 0 ? '#4f46e5' : i === 1 ? '#6366f1' : '#818cf8',
                     }}
                   />
                 </div>
               </div>
             ))}
+            {activityRanking.length === 0 && (
+              <p className="text-xs text-gray-400 text-center py-4">Nenhuma atividade registrada ainda.</p>
+            )}
           </div>
         </div>
       </div>
@@ -598,7 +624,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Coordinator workload */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">Carga por Coordenador</h2>
+          <h2 className="text-base font-semibold text-gray-800 mb-4">Voluntários por Coordenador</h2>
           <div className="space-y-3">
             {(() => {
               const map: Record<string, { active: number; total: number }> = {};

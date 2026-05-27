@@ -47,17 +47,17 @@ export type JourneyStage =
   | 'nao_retornou';
 
 export const STAGE_LABELS: Record<JourneyStage, string> = {
-  cadastrado: 'Cadastrado',
+  cadastrado: 'Novo Cadastro',
   grupo_acolhimento: 'Grupo de Acolhimento',
-  pesquisa_area: 'Pesquisa de Área',
+  pesquisa_area: 'Conhecendo as Áreas',
   direcionado_area: 'Direcionado para Área',
-  contato_coordenador: 'Contato ao Coordenador',
-  coordenador_contatou: 'Coordenador Contatou',
-  grupo_area: 'Grupo da Área',
-  treinamento: 'Treinamento',
+  contato_coordenador: 'Aguardando Contato',
+  coordenador_contatou: 'Em Conversa com Coord.',
+  grupo_area: 'No Grupo da Área',
+  treinamento: 'Em Treinamento',
   primeira_escala: 'Primeira Escala',
-  estabelecido: 'Estabelecido',
-  mudou_area: 'Mudou de Ministério',
+  estabelecido: 'Ativo no Ministério',
+  mudou_area: 'Transferido',
   nao_retornou: 'Sem Retorno',
 };
 

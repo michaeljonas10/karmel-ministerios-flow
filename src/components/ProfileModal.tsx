@@ -146,9 +146,15 @@ export default function ProfileModal({ onClose }: Props) {
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500">Função:</span>
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-              profile?.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'
+              profile?.role === 'super_admin' ? 'bg-red-100 text-red-700' :
+              profile?.role === 'admin' ? 'bg-indigo-100 text-indigo-700' :
+              profile?.role === 'ministry_leader' ? 'bg-green-100 text-green-700' :
+              'bg-purple-100 text-purple-700'
             }`}>
-              {profile?.role === 'admin' ? 'Administrador' : 'Coordenador'}
+              {profile?.role === 'super_admin' ? 'Super Admin' :
+               profile?.role === 'admin' ? 'Administrador' :
+               profile?.role === 'ministry_leader' ? 'Líder de Ministério' :
+               'Coordenador'}
             </span>
           </div>
 

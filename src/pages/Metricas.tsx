@@ -132,7 +132,11 @@ function useMetrics(volunteers: Volunteer[], allVols: Volunteer[], mode: FilterM
     if (unknownOrigin > 0) originData.push({ name: 'Não informado', value: unknownOrigin, color: '#d1d5db' })
     const monthlyData = buildTimeSeries(allVols, mode, year, month, startDate, endDate)
     const subAreaMap: Record<string, number> = {}
-    volunteers.forEach(v => { const key = v.subArea || 'Sem sub-área'; subAreaMap[key] = (subAreaMap[key] || 0) + 1 })
+    volunteers.forEach(v => {
+      if (!v.subArea) return; // skip volunteers without a sub-area
+      const key = v.subArea;
+      subAreaMap[key] = (subAreaMap[key] || 0) + 1
+    })
     const subAreaData = Object.entries(subAreaMap).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, count]) => ({ name, count }))
     const total = volunteers.length
     const established = volunteers.filter(v => v.currentStage === 'estabelecido').length

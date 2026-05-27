@@ -148,9 +148,23 @@ export function VolunteersProvider({ children }: { children: ReactNode }) {
       )
       .subscribe()
 
+    // Refresh data when user returns to the tab or window
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchVolunteers()
+      }
+    }
+    const handleFocus = () => {
+      fetchVolunteers()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
     return () => {
       subscription.unsubscribe()
       supabase.removeChannel(channel)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
     }
   }, [])
 

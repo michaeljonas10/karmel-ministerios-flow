@@ -190,7 +190,7 @@ export default function CadastroVoluntario() {
   }, [form.ministry_id]);
 
   // Step validations
-  const step1Valid = form.name.trim() && form.phone.replace(/\D/g, '').length >= 10;
+  const step1Valid = !!(form.name.trim() && form.phone.replace(/\D/g, '').length >= 10 && form.birthday && form.email.trim() && form.how_found);
   const step2Valid = form.ministry_id && form.sub_area && form.attends_church && form.has_experience;
   // Step 3 (platforms) is always optional — can advance with 0 selected
 
@@ -211,13 +211,11 @@ export default function CadastroVoluntario() {
 
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
-    const subAreaObj = selectedMinistry?.subAreas.find(s => s.name === form.sub_area);
-    // Prefer user-profile-assigned coordinator names, fall back to manual text, then ministry-level
-    const subAreaCoord =
-      subAreaObj?.coordinatorNames?.[0] ||
-      subAreaObj?.coordinator ||
-      selectedMinistry?.coordinators[0] ||
-      '';
+    const subAreaObj = form.sub_area ? selectedMinistry?.subAreas.find(s => s.name === form.sub_area) : undefined;
+    // Only assign coordinator if volunteer has a defined sub-area
+    const subAreaCoord = form.sub_area
+      ? (subAreaObj?.coordinatorNames?.[0] || subAreaObj?.coordinator || '')
+      : '';
 
     const platformsNote = form.platforms.length > 0
       ? `Plataformas: ${form.platforms.join(', ')}`
@@ -327,7 +325,7 @@ export default function CadastroVoluntario() {
                       />
                     </Field>
 
-                    <Field label="Data de Aniversário">
+                    <Field label="Data de Aniversário" required>
                       <input
                         type="date"
                         value={form.birthday}
@@ -337,17 +335,17 @@ export default function CadastroVoluntario() {
                       />
                     </Field>
 
-                    <Field label="Email">
+                    <Field label="Email" required>
                       <input
                         type="email"
                         value={form.email}
                         onChange={set('email')}
-                        placeholder="seu@email.com (opcional)"
+                        placeholder="seu@email.com"
                         className={inputCls}
                       />
                     </Field>
 
-                    <Field label="Como você chegou até nós?">
+                    <Field label="Como você chegou até nós?" required>
                       <select value={form.how_found} onChange={set('how_found')} className={selectCls}>
                         <option value="">Selecione...</option>
                         <option value="Integra">Integra</option>

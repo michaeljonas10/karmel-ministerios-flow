@@ -19,6 +19,7 @@ import RedefinirSenha from './pages/RedefinirSenha';
 import Ajuda from './pages/Ajuda';
 import Suporte from './pages/Suporte';
 import Arquivados from './pages/Arquivados';
+import Aniversariantes from './pages/Aniversariantes';
 import GlobalSearch from './components/GlobalSearch';
 
 function LoadingScreen() {
@@ -144,6 +145,14 @@ function AppRoutes() {
                 element={
                   <ProtectedRoute superAdminOnly>
                     <Suporte />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/aniversariantes"
+                element={
+                  <ProtectedRoute>
+                    <Aniversariantes />
                   </ProtectedRoute>
                 }
               />

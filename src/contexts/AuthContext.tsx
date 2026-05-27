@@ -28,6 +28,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
+const INACTIVITY_TIMEOUT = 14400000 // 4 hours in milliseconds
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -43,6 +45,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    let inactivityTimer: ReturnType<typeof setTimeout> | null = null
+
+    const resetInactivityTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer)
+      inactivityTimer = setTimeout(() => {
+        supabase.auth.signOut()
+        setProfile(null)
+      }, INACTIVITY_TIMEOUT)
+    }
+
+    const activityEvents = ['mousemove', 'keydown', 'click', 'touchstart'] as const
+    activityEvents.forEach(event => document.addEventListener(event, resetInactivityTimer, { passive: true }))
+    resetInactivityTimer()
+
     let profileChannel: ReturnType<typeof supabase.channel> | null = null
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -96,6 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe()
       if (profileChannel) supabase.removeChannel(profileChannel)
+      if (inactivityTimer) clearTimeout(inactivityTimer)
+      activityEvents.forEach(event => document.removeEventListener(event, resetInactivityTimer))
     }
   }, [])
 
