@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import {
   ArrowLeft, Mail, Calendar, User, ChevronRight, ChevronLeft,
-  CheckCircle, MessageSquare, Clock, Pencil, X, Save, Copy, Cake, PhoneCall, Compass, Archive, History, Monitor,
+  CheckCircle, MessageSquare, Clock, Pencil, X, Save, Copy, Cake, PhoneCall, Compass, Archive, History, Monitor, ArrowRightLeft,
 } from 'lucide-react';
 import WaButton from '../components/WaButton';
 import { getDaysSinceLastContact } from '../data/volunteers';
@@ -39,6 +39,11 @@ export default function VolunteerDetail() {
   const [toastMsg, setToastMsg] = useState('');
   const [editField, setEditField] = useState<'phone' | 'email' | 'name' | 'subArea' | 'birthday' | 'howFound' | null>(null);
   const [editingSubAreas, setEditingSubAreas] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferMinistryId, setTransferMinistryId] = useState('');
+  const [transferSubArea, setTransferSubArea] = useState('');
+  const [transferNote, setTransferNote] = useState('');
+  const [transferring, setTransferring] = useState(false);
   const [editValue, setEditValue] = useState('');
   const [templateCopied, setTemplateCopied] = useState(false);
   const [showEncerrar, setShowEncerrar] = useState(false);
@@ -344,6 +349,63 @@ export default function VolunteerDetail() {
     await supabase.from('volunteers').update({ sub_areas: withPrimary }).eq('id', volunteer.id);
   }
 
+  async function transferMinistry() {
+    if (!volunteer || !transferMinistryId || !transferSubArea || transferring) return;
+    setTransferring(true);
+
+    const now = new Date().toISOString();
+    const authorName = profile?.name ?? 'Desconhecido';
+    const fromMinistry = ministry?.name ?? volunteer.ministryId;
+    const toMinistry = ministries.find(m => m.id === transferMinistryId)?.name ?? transferMinistryId;
+    const toSubAreaObj = ministries.find(m => m.id === transferMinistryId)?.subAreas.find(sa => sa.name === transferSubArea);
+    const newCoordinator = toSubAreaObj?.coordinatorNames?.[0] ?? toSubAreaObj?.coordinator ?? '';
+    const historyNote = `Transferido de ${fromMinistry} (${volunteer.subArea}) para ${toMinistry} (${transferSubArea})${transferNote ? ` — ${transferNote}` : ''}`;
+
+    // Atualiza o voluntário
+    await supabase.from('volunteers').update({
+      ministry_id: transferMinistryId,
+      sub_area: transferSubArea,
+      sub_areas: [transferSubArea],
+      coordinator: newCoordinator,
+      current_stage: 'cadastrado',
+      last_contact_date: now,
+    }).eq('id', volunteer.id);
+
+    // Registra no histórico de etapas
+    await supabase.from('stage_history').insert({
+      volunteer_id: volunteer.id,
+      stage: 'cadastrado',
+      date: now,
+      note: historyNote,
+      changed_by: authorName,
+    });
+
+    // Registra no log de edições
+    await supabase.from('volunteer_edit_log').insert([
+      { volunteer_id: volunteer.id, field: 'Ministério', old_value: fromMinistry, new_value: toMinistry, changed_by: authorName },
+      { volunteer_id: volunteer.id, field: 'Sub-área', old_value: volunteer.subArea, new_value: transferSubArea, changed_by: authorName },
+    ]);
+
+    // Atualiza estado local
+    setVolunteer(v => v ? {
+      ...v,
+      ministryId: transferMinistryId,
+      subArea: transferSubArea,
+      subAreas: [transferSubArea],
+      coordinator: newCoordinator,
+      currentStage: 'cadastrado',
+      lastContactDate: now,
+      stageHistory: [...v.stageHistory, { stage: 'cadastrado', date: now, note: historyNote, changedBy: authorName }],
+    } : v);
+
+    setTransferring(false);
+    setShowTransfer(false);
+    setTransferMinistryId('');
+    setTransferSubArea('');
+    setTransferNote('');
+    showToast(`Transferido para ${toMinistry}!`);
+  }
+
   async function addNote() {
     if (!volunteer || !noteInput.trim()) return;
     const note = noteInput.trim();
@@ -393,12 +455,11 @@ export default function VolunteerDetail() {
                 <p className="text-xs text-red-500 mt-0.5">Voluntário não respondeu aos contatos. Ainda aparece no Follow-up.</p>
               </button>
               <button
-                disabled={encerrarReason.trim().length < 10}
-                onClick={() => { setOffTrack('mudou_area'); setShowEncerrar(false); setEncerrarReason(''); }}
-                className="w-full text-left px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={() => { setShowEncerrar(false); setEncerrarReason(''); setShowTransfer(true); }}
+                className="w-full text-left px-4 py-3 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors"
               >
-                <p className="text-sm font-semibold text-amber-700">Mudou de Ministério</p>
-                <p className="text-xs text-amber-600 mt-0.5">Está servindo em outra área.</p>
+                <p className="text-sm font-semibold text-blue-700">Transferir de Ministério</p>
+                <p className="text-xs text-blue-500 mt-0.5">Seleciona o ministério e sub-área de destino. Registrado no histórico.</p>
               </button>
               <button
                 disabled={encerrarReason.trim().length < 10}
@@ -410,6 +471,92 @@ export default function VolunteerDetail() {
               </button>
             </div>
             <button onClick={() => { setShowEncerrar(false); setEncerrarReason(''); }} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Ministry Modal */}
+      {showTransfer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
+            <div className="flex items-center gap-2 mb-4">
+              <ArrowRightLeft size={18} className="text-indigo-600" />
+              <h3 className="text-base font-bold text-gray-900">Transferir de Ministério</h3>
+            </div>
+
+            <div className="space-y-3 mb-4">
+              {/* De → para */}
+              <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 text-sm text-gray-600">
+                <span className="font-medium text-gray-800">{ministry?.name}</span>
+                <span className="text-gray-400">→</span>
+                <span className="text-gray-400 italic">{ministries.find(m => m.id === transferMinistryId)?.name ?? 'selecione abaixo'}</span>
+              </div>
+
+              {/* Ministério destino */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Ministério de destino</label>
+                <select
+                  value={transferMinistryId}
+                  onChange={e => { setTransferMinistryId(e.target.value); setTransferSubArea(''); }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                >
+                  <option value="">Selecione...</option>
+                  {ministries.filter(m => m.id !== volunteer?.ministryId).map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sub-área destino */}
+              {transferMinistryId && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Sub-área no novo ministério</label>
+                  <select
+                    value={transferSubArea}
+                    onChange={e => setTransferSubArea(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  >
+                    <option value="">Selecione...</option>
+                    {ministries.find(m => m.id === transferMinistryId)?.subAreas.map(sa => (
+                      <option key={sa.id} value={sa.name}>{sa.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Observação opcional */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Observação (opcional)</label>
+                <input
+                  type="text"
+                  value={transferNote}
+                  onChange={e => setTransferNote(e.target.value)}
+                  placeholder="Ex: sentiu chamado para este ministério"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                />
+              </div>
+
+              <p className="text-xs text-gray-400">
+                A jornada reiniciará em <strong>Novo Cadastro</strong> no ministério de destino. A transferência ficará registrada no histórico.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowTransfer(false); setTransferMinistryId(''); setTransferSubArea(''); setTransferNote(''); }}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={!transferMinistryId || !transferSubArea || transferring}
+                onClick={transferMinistry}
+                className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+              >
+                <ArrowRightLeft size={14} />
+                {transferring ? 'Transferindo...' : 'Confirmar'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -597,6 +744,14 @@ export default function VolunteerDetail() {
               >
                 <Copy size={14} />
                 {templateCopied ? 'Copiado!' : 'Template WA'}
+              </button>
+              <button
+                className="flex items-center gap-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-2 rounded-xl font-medium transition-colors"
+                onClick={() => setShowTransfer(true)}
+                title="Transferir para outro ministério"
+              >
+                <ArrowRightLeft size={14} />
+                Transferir
               </button>
             </div>
           </div>
