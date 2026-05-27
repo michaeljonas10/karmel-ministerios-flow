@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Camera, Music, Baby, Zap, Heart, Home,
   Bell, Menu, X, AlertTriangle, Settings, LogOut, ShieldCheck, User, TrendingUp, HelpCircle, Headphones, Archive,
@@ -78,6 +78,8 @@ export default function Layout({ children }: LayoutProps) {
   const [bannerIndex, setBannerIndex] = useState(0);
   const [bannerVisible, setBannerVisible] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
+  const isOnDashboard = location.pathname === '/';
   const { profile, isAdmin, isSuperAdmin, isLeader, signOut } = useAuth();
   const { ministries } = useMinistries();
   const { volunteers: allVolunteers } = useVolunteers();
@@ -85,15 +87,15 @@ export default function Layout({ children }: LayoutProps) {
 
   // Build banner messages
   const bannerMessages = useMemo(() => {
-    const msgs: { text: string; href: string; gradient: string }[] = [];
+    const msgs: { text: string; href: string; dot: string }[] = [];
 
     // Birthday today volunteers
     const birthdayToday = allVolunteers.filter(v => v.birthday && isBirthdayToday(v.birthday));
     birthdayToday.slice(0, 3).forEach(v => {
       msgs.push({
-        text: `🎂 Hoje é aniversário de ${v.name.split(' ')[0]}!`,
+        text: `Aniversário de ${v.name.split(' ')[0]} hoje`,
         href: '/aniversariantes',
-        gradient: 'from-pink-500 to-rose-500',
+        dot: '#f43f5e',
       });
     });
 
@@ -105,9 +107,9 @@ export default function Layout({ children }: LayoutProps) {
     longWithoutContact.forEach(v => {
       const days = getDaysSinceLastContact(v);
       msgs.push({
-        text: `⚠️ ${v.name.split(' ')[0]} está há ${days} dias sem contato`,
+        text: `${v.name.split(' ')[0]} está há ${days} dias sem contato`,
         href: `/voluntario/${v.id}`,
-        gradient: 'from-amber-500 to-orange-500',
+        dot: '#f59e0b',
       });
     });
 
@@ -115,13 +117,13 @@ export default function Layout({ children }: LayoutProps) {
     const STAGE_ORDER_LOCAL = ['cadastrado','grupo_acolhimento','pesquisa_area','direcionado_area','contato_coordenador','coordenador_contatou','grupo_area','treinamento','primeira_escala','estabelecido'];
     const closeToEstablished = allVolunteers.filter(v => {
       const idx = STAGE_ORDER_LOCAL.indexOf(v.currentStage);
-      return idx === STAGE_ORDER_LOCAL.length - 2; // one step before estabelecido
+      return idx === STAGE_ORDER_LOCAL.length - 2;
     }).slice(0, 2);
     closeToEstablished.forEach(v => {
       msgs.push({
-        text: `🏆 ${v.name.split(' ')[0]} está a 1 etapa de se tornar Ativo!`,
+        text: `${v.name.split(' ')[0]} está a 1 etapa de se tornar Ativo`,
         href: `/voluntario/${v.id}`,
-        gradient: 'from-indigo-500 to-violet-500',
+        dot: '#6366f1',
       });
     });
 
@@ -129,9 +131,9 @@ export default function Layout({ children }: LayoutProps) {
     const activeCount = allVolunteers.filter(v => v.currentStage === 'estabelecido').length;
     if (activeCount > 0) {
       msgs.push({
-        text: `📊 ${activeCount} voluntário${activeCount !== 1 ? 's' : ''} ativo${activeCount !== 1 ? 's' : ''} no ministério`,
+        text: `${activeCount} voluntário${activeCount !== 1 ? 's' : ''} ativo${activeCount !== 1 ? 's' : ''} no ministério`,
         href: '/',
-        gradient: 'from-teal-500 to-emerald-500',
+        dot: '#10b981',
       });
     }
 
@@ -349,13 +351,21 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </header>
 
-        {/* Dynamic banner strip */}
-        {currentBanner && (
+        {/* Dynamic banner strip — só no Dashboard, discreto */}
+        {isOnDashboard && currentBanner && (
           <button
             onClick={() => navigate(currentBanner.href)}
-            className={`w-full flex items-center justify-center px-4 h-11 text-white text-sm font-medium bg-gradient-to-r ${currentBanner.gradient} transition-opacity duration-400 flex-shrink-0 truncate hover:opacity-90`}
-            style={{ opacity: bannerVisible ? 1 : 0 }}
+            className="w-full flex items-center justify-center gap-2 px-4 h-8 text-gray-600 text-xs font-medium bg-gray-50 border-b border-gray-100 hover:bg-gray-100 flex-shrink-0 transition-colors duration-200"
+            style={{
+              opacity: bannerVisible ? 1 : 0,
+              transform: bannerVisible ? 'translateY(0)' : 'translateY(-4px)',
+              transition: 'opacity 350ms ease, transform 350ms ease',
+            }}
           >
+            <span
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: currentBanner.dot }}
+            />
             <span className="truncate">{currentBanner.text}</span>
           </button>
         )}
