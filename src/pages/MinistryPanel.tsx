@@ -338,9 +338,10 @@ export default function MinistryPanel() {
       </div>
 
       {/* View toggle + Search + Filters */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col gap-2">
+        {/* Row 1: busca + importar CSV */}
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -350,46 +351,47 @@ export default function MinistryPanel() {
               className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
             />
           </div>
-          <div className="flex items-center gap-2">
-            {/* Import CSV */}
+          <button
+            onClick={() => setShowImport(true)}
+            title="Importar CSV"
+            className="flex items-center gap-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2.5 rounded-xl font-medium transition-colors flex-shrink-0"
+          >
+            <Upload size={15} />
+            <span className="hidden sm:inline">Importar CSV</span>
+          </button>
+        </div>
+
+        {/* Row 2: período + toggle Tabela/Kanban */}
+        <div className="flex items-center gap-2">
+          <select
+            value={periodFilter}
+            onChange={e => setPeriodFilter(Number(e.target.value) as 0 | 30 | 60 | 90)}
+            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 text-gray-600"
+          >
+            <option value={0}>Todos os períodos</option>
+            <option value={30}>Últimos 30 dias</option>
+            <option value={60}>Últimos 60 dias</option>
+            <option value={90}>Últimos 90 dias</option>
+          </select>
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl flex-shrink-0">
             <button
-              onClick={() => setShowImport(true)}
-              className="flex items-center gap-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl font-medium transition-colors"
+              onClick={() => setView('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                view === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
             >
-              <Upload size={15} />
-              Importar CSV
+              <List size={15} />
+              Tabela
             </button>
-            {/* Period filter */}
-            <select
-              value={periodFilter}
-              onChange={e => setPeriodFilter(Number(e.target.value) as 0 | 30 | 60 | 90)}
-              className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 text-gray-600"
+            <button
+              onClick={() => setView('kanban')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                view === 'kanban' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
             >
-              <option value={0}>Todos os períodos</option>
-              <option value={30}>Últimos 30 dias</option>
-              <option value={60}>Últimos 60 dias</option>
-              <option value={90}>Últimos 90 dias</option>
-            </select>
-            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
-              <button
-                onClick={() => setView('table')}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  view === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <List size={15} />
-                Tabela
-              </button>
-              <button
-                onClick={() => setView('kanban')}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  view === 'kanban' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <LayoutGrid size={15} />
-                Kanban
-              </button>
-            </div>
+              <LayoutGrid size={15} />
+              Kanban
+            </button>
           </div>
         </div>
 
