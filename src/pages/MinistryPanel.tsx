@@ -5,7 +5,7 @@ import { LayoutGrid, List, Search, Users, CheckSquare, Square, ChevronRight, Dow
 import CsvImportModal from '../components/CsvImportModal';
 import { useMinistries } from '../contexts/MinistriesContext';
 import { getDaysSinceLastContact } from '../data/volunteers';
-import { STAGE_ORDER, STAGE_LABELS, HOW_FOUND_OPTIONS } from '../types';
+import { STAGE_LABELS, HOW_FOUND_OPTIONS, getMinistryStages } from '../types';
 import type { JourneyStage, Volunteer } from '../types';
 import JourneyBadge from '../components/JourneyBadge';
 import VolunteerCard from '../components/VolunteerCard';
@@ -165,10 +165,13 @@ export default function MinistryPanel() {
   }
 
   async function bulkAdvance() {
+    const ministryStages = getMinistryStages(ministry);
     for (const id of selected) {
       const v = volunteers.find(x => x.id === id);
-      if (!v || STAGE_ORDER.indexOf(v.currentStage) >= STAGE_ORDER.length - 1) continue;
-      const next = STAGE_ORDER[STAGE_ORDER.indexOf(v.currentStage) + 1];
+      if (!v) continue;
+      const idx = ministryStages.indexOf(v.currentStage);
+      if (idx < 0 || idx >= ministryStages.length - 1) continue;
+      const next = ministryStages[idx + 1];
       const now = new Date().toISOString();
       setVolunteers((prev: Volunteer[]) => prev.map(x => x.id !== id ? x : { ...x, currentStage: next, lastContactDate: now }));
       await supabase.from('volunteers').update({ current_stage: next, last_contact_date: now }).eq('id', id);
@@ -217,7 +220,8 @@ export default function MinistryPanel() {
 
   function handleDragOver(event: DragOverEvent) {
     const stage = event.over?.id as JourneyStage | null;
-    setOverStage(STAGE_ORDER.includes(stage as JourneyStage) ? stage : null);
+    const ministryStages = getMinistryStages(ministry);
+    setOverStage(ministryStages.includes(stage as JourneyStage) ? stage : null);
   }
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -226,7 +230,8 @@ export default function MinistryPanel() {
     const { active, over } = event;
     if (!over) return;
     const targetStage = over.id as JourneyStage;
-    if (STAGE_ORDER.includes(targetStage)) {
+    const ministryStages = getMinistryStages(ministry);
+    if (ministryStages.includes(targetStage)) {
       await moveToStage(active.id as string, targetStage);
     }
   }
@@ -559,8 +564,8 @@ export default function MinistryPanel() {
         >
           <div className="overflow-x-auto pb-4">
             <div className="flex gap-4 min-w-max">
-              {/* Track columns only — off-track columns removed */}
-              {STAGE_ORDER.map(stage => {
+              {/* Colunas configuradas para este ministério */}
+              {getMinistryStages(ministry).map(stage => {
                 const stageVolunteers = filtered.filter(v => v.currentStage === stage);
                 const isOver = overStage === stage;
                 return (
