@@ -65,7 +65,7 @@ export default function FollowUp() {
     return volunteers.filter(v => {
       if (v.ministryId !== profile?.ministry_id) return false;
       if (isLeader) return true;
-      if (mySubAreaNames.includes(v.subArea)) return true;
+      if (mySubAreaNames.some(s => (v.subAreas ?? [v.subArea]).includes(s))) return true;
       if (profile?.name && v.coordinator === profile.name) return true;
       return false;
     });

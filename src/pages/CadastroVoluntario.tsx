@@ -120,7 +120,8 @@ interface FormData {
   email: string;
   how_found: string;
   ministry_id: string;
-  sub_area: string;
+  sub_area: string;       // primária (1ª selecionada)
+  sub_areas: string[];    // todas as selecionadas
   attends_church: string;
   has_experience: string;
   participates_gc: string;
@@ -153,6 +154,7 @@ export default function CadastroVoluntario() {
     how_found: '',
     ministry_id: preMinistry,
     sub_area: '',
+    sub_areas: [],
     attends_church: '',
     has_experience: '',
     participates_gc: '',
@@ -169,6 +171,19 @@ export default function CadastroVoluntario() {
         : [...prev.platforms, p],
     }));
 
+  const toggleSubArea = (saName: string) =>
+    setForm(prev => {
+      const already = prev.sub_areas.includes(saName);
+      const next = already
+        ? prev.sub_areas.filter(s => s !== saName)
+        : [...prev.sub_areas, saName];
+      return {
+        ...prev,
+        sub_areas: next,
+        sub_area: next[0] ?? '', // primária = primeira selecionada
+      };
+    });
+
   const set = (field: keyof FormData) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -184,14 +199,14 @@ export default function CadastroVoluntario() {
 
   // Reset sub_area when ministry changes
   useEffect(() => {
-    setForm(prev => ({ ...prev, sub_area: '', platforms: [] }));
+    setForm(prev => ({ ...prev, sub_area: '', sub_areas: [], platforms: [] }));
     // Se mudou para ministério sem step 3 e estava no step 3, volta para step 2
     if (step === 3) setStep(2);
   }, [form.ministry_id]);
 
   // Step validations
   const step1Valid = !!(form.name.trim() && form.phone.replace(/\D/g, '').length >= 10 && form.birthday && form.email.trim() && form.how_found);
-  const step2Valid = form.ministry_id && form.sub_area && form.attends_church && form.has_experience;
+  const step2Valid = form.ministry_id && form.sub_areas.length > 0 && form.attends_church && form.has_experience;
   // Step 3 (platforms) is always optional — can advance with 0 selected
 
   const submitForm = async () => {
@@ -229,6 +244,7 @@ export default function CadastroVoluntario() {
       registered_at: now,
       ministry_id: form.ministry_id,
       sub_area: form.sub_area,
+      sub_areas: form.sub_areas,
       coordinator: subAreaCoord,
       current_stage: 'cadastrado',
       birthday: form.birthday || null,
@@ -372,18 +388,38 @@ export default function CadastroVoluntario() {
                       </select>
                     </Field>
 
-                    <Field label="Sub-área de interesse" required>
-                      <select
-                        value={form.sub_area}
-                        onChange={set('sub_area')}
-                        disabled={!form.ministry_id}
-                        className={`${selectCls} disabled:opacity-50`}
-                      >
-                        <option value="">Selecione uma sub-área...</option>
-                        {selectedMinistry?.subAreas.map(sa => (
-                          <option key={sa.id} value={sa.name}>{sa.name}</option>
-                        ))}
-                      </select>
+                    <Field label="Sub-área(s) de interesse" required>
+                      {!form.ministry_id ? (
+                        <p className="text-sm text-gray-400 italic">Selecione um ministério primeiro.</p>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedMinistry?.subAreas.map(sa => {
+                              const selected = form.sub_areas.includes(sa.name);
+                              return (
+                                <button
+                                  key={sa.id}
+                                  type="button"
+                                  onClick={() => toggleSubArea(sa.name)}
+                                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all select-none
+                                    ${selected
+                                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                                      : 'bg-white border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600'
+                                    }`}
+                                >
+                                  {selected && <span className="mr-1">✓</span>}
+                                  {sa.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {form.sub_areas.length > 1 && (
+                            <p className="text-xs text-indigo-600 mt-1.5">
+                              Primária: <strong>{form.sub_area}</strong> · Também: {form.sub_areas.slice(1).join(', ')}
+                            </p>
+                          )}
+                        </>
+                      )}
                     </Field>
 
                     <Field label="Já frequenta a Igreja?" required>

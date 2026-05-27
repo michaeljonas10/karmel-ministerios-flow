@@ -71,6 +71,7 @@ function AddVolunteerModal({ onClose, onSaved }: { onClose: () => void; onSaved:
       id, name: form.name.trim(), phone: form.phone.trim(),
       email: form.email.trim() || null,
       ministry_id: form.ministryId, sub_area: form.subArea,
+      sub_areas: form.subArea ? [form.subArea] : [],
       coordinator: form.coordinator.trim(),
       how_found: form.howFound || null,
       participates_gc: form.participatesGc === 'Sim' ? true : form.participatesGc === 'Não' ? false : null,

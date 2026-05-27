@@ -38,6 +38,7 @@ export default function VolunteerDetail() {
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [editField, setEditField] = useState<'phone' | 'email' | 'name' | 'subArea' | 'birthday' | 'howFound' | null>(null);
+  const [editingSubAreas, setEditingSubAreas] = useState(false);
   const [editValue, setEditValue] = useState('');
   const [templateCopied, setTemplateCopied] = useState(false);
   const [showEncerrar, setShowEncerrar] = useState(false);
@@ -66,6 +67,9 @@ export default function VolunteerDetail() {
           registeredAt: data.registered_at,
           ministryId: data.ministry_id,
           subArea: data.sub_area,
+          subAreas: (data.sub_areas as string[] | undefined)?.length
+            ? (data.sub_areas as string[])
+            : [data.sub_area].filter(Boolean),
           coordinator: data.coordinator,
           currentStage: data.current_stage,
           stageHistory: (data.stage_history || []).map((h: { stage: string; date: string; note?: string; changed_by?: string }) => ({
@@ -270,7 +274,11 @@ export default function VolunteerDetail() {
         subAreaObj?.coordinator ??
         '';
       updates.coordinator = newCoordinator;
-      setVolunteer(v => v ? { ...v, subArea: trimmed, coordinator: newCoordinator } : v);
+      // Mantém sub_areas coerente: troca a primária antiga pela nova, mantém secundárias
+      const oldPrimary = volunteer.subArea;
+      const newSubAreas = [trimmed, ...(volunteer.subAreas ?? []).filter(s => s !== oldPrimary && s !== trimmed)];
+      (updates as Record<string, unknown>).sub_areas = newSubAreas;
+      setVolunteer(v => v ? { ...v, subArea: trimmed, subAreas: newSubAreas, coordinator: newCoordinator } : v);
     } else if (editField === 'birthday') {
       setVolunteer(v => v ? { ...v, birthday: trimmed || undefined } : v);
     } else if (editField === 'howFound') {
@@ -321,6 +329,19 @@ export default function VolunteerDetail() {
     await supabase.from('volunteers').update({ archived_at: now, notes: updatedNotes }).eq('id', volunteer.id);
     showToast('Voluntário arquivado.');
     setTimeout(() => navigate('/arquivados'), 1200);
+  }
+
+  async function toggleSecondarySubArea(saName: string) {
+    if (!volunteer) return;
+    const primary = volunteer.subArea;
+    if (saName === primary) return; // não remove a primária aqui
+    const current = volunteer.subAreas ?? [primary];
+    const next = current.includes(saName)
+      ? current.filter(s => s !== saName)
+      : [...current, saName];
+    const withPrimary = next.includes(primary) ? next : [primary, ...next];
+    setVolunteer(v => v ? { ...v, subAreas: withPrimary } : v);
+    await supabase.from('volunteers').update({ sub_areas: withPrimary }).eq('id', volunteer.id);
   }
 
   async function addNote() {
@@ -454,6 +475,54 @@ export default function VolunteerDetail() {
                       </div>
                     )}
                   </div>
+                  {/* Subáreas secundárias */}
+                  {(() => {
+                    const secondary = (volunteer.subAreas ?? []).filter(s => s && s !== volunteer.subArea);
+                    if (secondary.length === 0 && !editingSubAreas) return null;
+                    return (
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        {secondary.map(s => (
+                          <span key={s} className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            {s}
+                            {editingSubAreas && (
+                              <button onClick={() => toggleSecondarySubArea(s)} className="text-indigo-400 hover:text-red-500 ml-0.5">
+                                <X size={10} />
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                        {editingSubAreas && ministry?.subAreas
+                          .filter(sa => sa.name !== volunteer.subArea && !(volunteer.subAreas ?? []).includes(sa.name))
+                          .map(sa => (
+                            <button
+                              key={sa.id}
+                              onClick={() => toggleSecondarySubArea(sa.name)}
+                              className="text-xs bg-gray-50 text-gray-500 border border-dashed border-gray-300 px-2 py-0.5 rounded-full hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                            >
+                              + {sa.name}
+                            </button>
+                          ))
+                        }
+                        <button
+                          onClick={() => setEditingSubAreas(e => !e)}
+                          className="text-xs text-gray-400 hover:text-indigo-600 p-0.5 transition-colors"
+                          title={editingSubAreas ? 'Fechar edição de subáreas' : 'Editar subáreas secundárias'}
+                        >
+                          {editingSubAreas ? <X size={11} /> : <Pencil size={11} />}
+                        </button>
+                      </div>
+                    );
+                  })()}
+                  {/* Botão para adicionar 1ª subárea secundária quando não há nenhuma */}
+                  {!editingSubAreas && (volunteer.subAreas ?? []).filter(s => s && s !== volunteer.subArea).length === 0 && (
+                    <button
+                      onClick={() => setEditingSubAreas(true)}
+                      className="text-xs text-gray-400 hover:text-indigo-600 flex items-center gap-0.5 mt-1 transition-colors"
+                      title="Adicionar subárea secundária"
+                    >
+                      <Pencil size={10} /> <span>também atua em...</span>
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 mt-3">

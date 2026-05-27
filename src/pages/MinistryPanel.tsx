@@ -118,8 +118,9 @@ export default function MinistryPanel() {
   const filtered = allVolunteers
     .filter(v => {
       if (['mudou_area', 'nao_retornou'].includes(v.currentStage)) return false;
-      if (subAreaFilter !== 'all' && subAreaFilter !== '__sem_area__' && v.subArea !== subAreaFilter) return false;
-      if (subAreaFilter === '__sem_area__' && v.subArea !== '') return false;
+      if (subAreaFilter !== 'all' && subAreaFilter !== '__sem_area__' &&
+          v.subArea !== subAreaFilter && !(v.subAreas ?? []).includes(subAreaFilter)) return false;
+      if (subAreaFilter === '__sem_area__' && (v.subAreas ?? [v.subArea]).some(s => s)) return false;
       const q = search.toLowerCase();
       if (q && !v.name.toLowerCase().includes(q) &&
           !v.subArea.toLowerCase().includes(q) &&
@@ -189,8 +190,8 @@ export default function MinistryPanel() {
 
   const subAreaCounts = ministry.subAreas.map(sa => ({
     ...sa,
-    count: allVolunteers.filter(v => v.subArea === sa.name).length,
-    established: allVolunteers.filter(v => v.subArea === sa.name && v.currentStage === 'estabelecido').length,
+    count: allVolunteers.filter(v => (v.subAreas ?? [v.subArea]).includes(sa.name)).length,
+    established: allVolunteers.filter(v => (v.subAreas ?? [v.subArea]).includes(sa.name) && v.currentStage === 'estabelecido').length,
   }));
 
   async function moveToStage(volunteerId: string, targetStage: JourneyStage) {

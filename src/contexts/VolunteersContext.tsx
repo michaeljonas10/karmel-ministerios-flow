@@ -14,6 +14,9 @@ function mapRow(v: Record<string, unknown>): Volunteer {
     registeredAt: v.registered_at as string,
     ministryId: v.ministry_id as string,
     subArea: (v.sub_area as string) ?? '',
+    subAreas: (v.sub_areas as string[] | undefined)?.length
+      ? (v.sub_areas as string[])
+      : [(v.sub_area as string) ?? ''].filter(Boolean),
     coordinator: (v.coordinator as string) ?? '',
     currentStage: v.current_stage as Volunteer['currentStage'],
     stageHistory: ((v.stage_history as { stage: string; date: string; note?: string }[]) || []).map(h => ({

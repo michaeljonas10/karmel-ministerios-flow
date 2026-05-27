@@ -98,7 +98,8 @@ export interface Volunteer {
   email?: string;
   registeredAt: string;
   ministryId: string;
-  subArea: string;
+  subArea: string;      // subárea primária
+  subAreas: string[];   // todas as subáreas (inclui a primária)
   coordinator: string;
   currentStage: JourneyStage;
   stageHistory: StageHistoryEntry[];

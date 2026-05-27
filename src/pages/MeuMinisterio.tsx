@@ -1021,6 +1021,7 @@ export default function MeuMinisterio() {
         id: v.id, name: v.name, phone: v.phone || '',
         email: v.email ?? undefined, registeredAt: v.registered_at,
         ministryId: v.ministry_id, subArea: v.sub_area || '',
+        subAreas: (v.sub_areas as string[] | undefined)?.length ? (v.sub_areas as string[]) : [v.sub_area].filter(Boolean),
         coordinator: v.coordinator || '', currentStage: v.current_stage as Volunteer['currentStage'],
         stageHistory: [], notes: v.notes || '', howFound: v.how_found ?? undefined,
         participatesGc: v.participates_gc ?? undefined,
@@ -1121,6 +1122,7 @@ export default function MeuMinisterio() {
         setVolunteers(prev => [{
           id, name: form.name.trim(), phone: form.phone, email: form.email || undefined,
           registeredAt: now, ministryId: ministry.id, subArea: form.sub_area,
+          subAreas: form.sub_area ? [form.sub_area] : [],
           coordinator, currentStage: 'cadastrado', stageHistory: [{ stage: 'cadastrado', date: now }],
           notes, lastContactDate: now, contactAttempts: 0,
           participatesGc: form.participates_gc === 'Sim' ? true : form.participates_gc === 'Não' ? false : undefined,
